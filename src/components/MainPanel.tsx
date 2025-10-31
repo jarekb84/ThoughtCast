@@ -77,8 +77,14 @@ export default function MainPanel({
               </div>
             </div>
             <div className="transcript-section">
-              <h3>Preview</h3>
-              <div className="transcript-text">{selectedSession.preview}</div>
+              <h3>Transcript</h3>
+              {selectedSession.transcript && selectedSession.transcript.length > 0 ? (
+                <div className="transcript-text">{selectedSession.transcript}</div>
+              ) : (
+                <div className="transcript-text no-transcript">
+                  {selectedSession.preview || "No transcript available"}
+                </div>
+              )}
             </div>
           </>
         ) : (

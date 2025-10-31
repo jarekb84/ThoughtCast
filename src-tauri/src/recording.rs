@@ -1,9 +1,11 @@
 use hound::{WavSpec, WavWriter};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::process::Command;
+use std::time::Duration;
 use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -13,11 +15,25 @@ pub struct Session {
     pub audio_path: String,
     pub duration: f64,
     pub preview: String,
+    #[serde(default)]
+    pub transcript_path: String,
+    #[serde(default)]
+    pub transcript: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionIndex {
     pub sessions: Vec<Session>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WhisperConfig {
+    #[serde(rename = "whisperPath")]
+    pub whisper_path: String,
+    #[serde(rename = "modelPath")]
+    pub model_path: String,
+    #[serde(rename = "voiceNotesDir")]
+    pub voice_notes_dir: Option<String>,
 }
 
 pub struct RecordingState {
@@ -47,8 +63,32 @@ pub fn get_storage_dir() -> Result<PathBuf, String> {
     // Create directories if they don't exist
     fs::create_dir_all(&storage_dir).map_err(|e| format!("Failed to create storage directory: {}", e))?;
     fs::create_dir_all(storage_dir.join("audio")).map_err(|e| format!("Failed to create audio directory: {}", e))?;
+    fs::create_dir_all(storage_dir.join("text")).map_err(|e| format!("Failed to create text directory: {}", e))?;
 
     Ok(storage_dir)
+}
+
+pub fn load_config() -> Result<WhisperConfig, String> {
+    let storage_dir = get_storage_dir()?;
+    let config_file = storage_dir.join("config.json");
+
+    if !config_file.exists() {
+        return Err(format!(
+            "Config file not found. Please create config.json at: {}\n\
+            Example content:\n\
+            {{\n\
+              \"whisperPath\": \"C:\\\\whisper\\\\whisper.exe\",\n\
+              \"modelPath\": \"C:\\\\whisper\\\\models\\\\ggml-base.bin\"\n\
+            }}",
+            config_file.display()
+        ));
+    }
+
+    let content = fs::read_to_string(&config_file)
+        .map_err(|e| format!("Failed to read config file: {}", e))?;
+
+    serde_json::from_str(&content)
+        .map_err(|e| format!("Failed to parse config file: {}", e))
 }
 
 pub fn load_sessions() -> Result<SessionIndex, String> {
@@ -200,6 +240,87 @@ where
     Ok(stream)
 }
 
+fn transcribe_audio(audio_path: &Path, id: &str) -> Result<(String, String), String> {
+    // Load config
+    let config = load_config()?;
+
+    // Verify Whisper executable exists
+    let whisper_path = Path::new(&config.whisper_path);
+    if !whisper_path.exists() {
+        return Err(format!("Whisper executable not found at: {}", config.whisper_path));
+    }
+
+    // Verify model exists
+    let model_path = Path::new(&config.model_path);
+    if !model_path.exists() {
+        return Err(format!("Whisper model not found at: {}", config.model_path));
+    }
+
+    // Run Whisper.cpp with -otxt flag to generate transcript file
+    // Whisper will create a file named {audio_path}.txt
+    let output = Command::new(&config.whisper_path)
+        .arg("-m")
+        .arg(&config.model_path)
+        .arg("-f")
+        .arg(audio_path)
+        .arg("-otxt")
+        .output()
+        .map_err(|e| format!("Failed to execute Whisper: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Whisper transcription failed: {}", stderr));
+    }
+
+    // Wait a moment for file to be written
+    thread::sleep(Duration::from_millis(500));
+
+    // Read the generated transcript file
+    // Whisper creates the file at {audio_path}.txt
+    let whisper_output_path = audio_path.with_extension("wav.txt");
+
+    if !whisper_output_path.exists() {
+        return Err(format!("Whisper did not create transcript file at: {}", whisper_output_path.display()));
+    }
+
+    let raw_transcript = fs::read_to_string(&whisper_output_path)
+        .map_err(|e| format!("Failed to read transcript file: {}", e))?;
+
+    // Clean transcript: remove timestamp lines like [00:00:00.000 --> 00:00:02.000]
+    let cleaned_transcript = raw_transcript
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim();
+            // Filter out timestamp lines
+            !trimmed.starts_with('[') || !trimmed.contains("-->")
+        })
+        .collect::<Vec<&str>>()
+        .join("\n")
+        .trim()
+        .to_string();
+
+    // Save cleaned transcript to text/ folder
+    let storage_dir = get_storage_dir()?;
+    let transcript_filename = format!("{}.txt", id);
+    let transcript_path = storage_dir.join("text").join(&transcript_filename);
+
+    fs::write(&transcript_path, &cleaned_transcript)
+        .map_err(|e| format!("Failed to write cleaned transcript: {}", e))?;
+
+    // Delete the temporary Whisper output file
+    let _ = fs::remove_file(whisper_output_path);
+
+    // Generate preview (first 100 characters)
+    let preview = if cleaned_transcript.len() > 100 {
+        format!("{}...", &cleaned_transcript[..100])
+    } else {
+        cleaned_transcript.clone()
+    };
+
+    // Return relative path and full transcript
+    Ok((format!("text/{}", transcript_filename), cleaned_transcript))
+}
+
 pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
     let mut state_guard = state.lock().unwrap();
 
@@ -257,13 +378,35 @@ pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
     writer.finalize()
         .map_err(|e| format!("Failed to finalize WAV file: {}", e))?;
 
+    // Attempt transcription
+    let (transcript_path, transcript, preview) = match transcribe_audio(&audio_path, &id) {
+        Ok((path, text)) => {
+            // Generate preview from transcript
+            let preview = if text.len() > 100 {
+                format!("{}...", &text[..100])
+            } else if text.is_empty() {
+                "No transcript".to_string()
+            } else {
+                text.clone()
+            };
+            (path, text, preview)
+        },
+        Err(e) => {
+            // Log error but don't fail the recording
+            eprintln!("Transcription failed: {}", e);
+            (String::new(), String::new(), format!("Transcription failed: {}", e))
+        }
+    };
+
     // Create session
     let session = Session {
         id: id.clone(),
         timestamp: timestamp.to_rfc3339(),
         audio_path: format!("audio/{}", audio_filename),
         duration,
-        preview: "Audio recording".to_string(),
+        preview,
+        transcript_path,
+        transcript,
     };
 
     // Load existing sessions

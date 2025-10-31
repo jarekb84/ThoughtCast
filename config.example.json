@@ -1,0 +1,4 @@
+{
+  "whisperPath": "C:\\Source\\whisper.cpp\\build\\bin\\Release\\whisper-cli.exe",
+  "modelPath": "C:\\Source\\whisper.cpp\\models\\ggml-large-v3-turbo.bin"
+}

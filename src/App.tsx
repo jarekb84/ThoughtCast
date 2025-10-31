@@ -65,10 +65,16 @@ function App() {
 
   const handleStopRecording = async () => {
     try {
-      setStatus("Saving audio...");
+      setStatus("Saving and transcribing audio...");
       const newSession = await invoke<Session>("stop_recording");
       setIsRecording(false);
-      setStatus("Recording saved");
+
+      // Check if transcription succeeded
+      if (newSession.transcript && newSession.transcript.length > 0) {
+        setStatus("Transcription complete!");
+      } else {
+        setStatus("Recording saved (transcription failed)");
+      }
 
       // Reload sessions to include the new one
       await loadSessions();
@@ -77,7 +83,7 @@ function App() {
       setSelectedId(newSession.id);
 
       // Reset status after a moment
-      setTimeout(() => setStatus("Ready to record"), 2000);
+      setTimeout(() => setStatus("Ready to record"), 3000);
     } catch (error) {
       console.error("Failed to stop recording:", error);
       setStatus(`Error: ${error}`);
