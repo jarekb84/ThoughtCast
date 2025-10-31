@@ -6,6 +6,7 @@ export interface Session {
   duration: number;
   transcript_path?: string;
   transcript?: string;
+  clipboard_copied?: boolean;
 }
 
 export interface SessionIndex {
