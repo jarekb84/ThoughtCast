@@ -1,0 +1,138 @@
+.main-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  background-color: #fff;
+}
+
+.main-panel-header {
+  padding: 20px 30px;
+  background-color: #f9f9f9;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.main-panel-header h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #333;
+}
+
+.controls-section {
+  padding: 30px;
+  border-bottom: 1px solid #e0e0e0;
+  background-color: #fafafa;
+}
+
+.record-button {
+  padding: 15px 40px;
+  font-size: 16px;
+  font-weight: 600;
+  background-color: #0066cc;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: not-allowed;
+  opacity: 0.5;
+  transition: all 0.3s;
+}
+
+.record-button:not(:disabled) {
+  cursor: pointer;
+  opacity: 1;
+}
+
+.record-button:not(:disabled):hover {
+  background-color: #0052a3;
+}
+
+.status-text {
+  margin-top: 15px;
+  font-size: 14px;
+  color: #666;
+  font-style: italic;
+}
+
+.session-details {
+  flex: 1;
+  padding: 30px;
+  overflow-y: auto;
+}
+
+.session-details h2 {
+  margin: 0 0 20px 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+}
+
+.session-info {
+  margin-bottom: 25px;
+  padding: 15px;
+  background-color: #f5f5f5;
+  border-radius: 6px;
+}
+
+.info-item {
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #555;
+}
+
+.info-item:last-child {
+  margin-bottom: 0;
+}
+
+.transcript-section {
+  margin-top: 20px;
+}
+
+.transcript-section h3 {
+  margin: 0 0 15px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.transcript-text {
+  padding: 20px;
+  background-color: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  min-height: 100px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #333;
+}
+
+.implementation-note {
+  margin-top: 15px;
+  padding: 10px 15px;
+  background-color: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #856404;
+}
+
+.no-selection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  color: #999;
+}
+
+.no-selection p {
+  margin: 10px 0;
+  font-size: 16px;
+}
+
+.no-selection .implementation-note {
+  margin-top: 20px;
+  max-width: 400px;
+}
