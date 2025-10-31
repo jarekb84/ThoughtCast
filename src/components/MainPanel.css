@@ -69,8 +69,14 @@
   font-family: monospace;
 }
 
-.copy-button {
+.transcript-actions {
+  display: flex;
+  gap: 10px;
   margin: 16px 0;
+  flex-wrap: wrap;
+}
+
+.copy-button {
   padding: 10px 20px;
   background-color: #4a90e2;
   color: white;
@@ -86,6 +92,26 @@
 }
 
 .copy-button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.retranscribe-button {
+  padding: 10px 20px;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.retranscribe-button:hover {
+  background-color: #218838;
+}
+
+.retranscribe-button:disabled {
   background-color: #ccc;
   cursor: not-allowed;
 }

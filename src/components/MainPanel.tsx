@@ -10,6 +10,7 @@ interface MainPanelProps {
   status: string;
   onStartRecording: () => void;
   onStopRecording: () => void;
+  onSessionsChanged: () => Promise<void>;
 }
 
 function formatDuration(seconds: number): string {
@@ -46,12 +47,14 @@ export default function MainPanel({
   status,
   onStartRecording,
   onStopRecording,
+  onSessionsChanged,
 }: MainPanelProps) {
   const [copyButtonText, setCopyButtonText] = useState("Copy to Clipboard");
   const [isCopying, setIsCopying] = useState(false);
   const [transcript, setTranscript] = useState<string | null>(null);
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
   const [isLoadingTranscript, setIsLoadingTranscript] = useState(false);
+  const [isRetranscribing, setIsRetranscribing] = useState(false);
 
   // Load transcript when selected session changes
   useEffect(() => {
@@ -109,6 +112,33 @@ export default function MainPanel({
     }
   };
 
+  const handleRetranscribe = async () => {
+    if (!selectedSession) return;
+
+    setIsRetranscribing(true);
+    setIsLoadingTranscript(true);
+    setTranscriptError(null);
+
+    try {
+      const newTranscript = await invoke<string>("retranscribe_session", {
+        sessionId: selectedSession.id,
+      });
+      setTranscript(newTranscript);
+
+      // Refresh the session list to get updated preview and transcript_path
+      await onSessionsChanged();
+    } catch (error) {
+      console.error("Failed to retranscribe:", error);
+      setTranscriptError(
+        `Retranscription failed: ${error instanceof Error ? error.message : String(error)}`
+      );
+      setTranscript(null);
+    } finally {
+      setIsRetranscribing(false);
+      setIsLoadingTranscript(false);
+    }
+  };
+
   return (
     <div className="main-panel">
       <div className="main-panel-header">
@@ -158,15 +188,24 @@ export default function MainPanel({
               )}
             </div>
 
-            {transcript && transcript.length > 0 && (
+            <div className="transcript-actions">
+              {transcript && transcript.length > 0 && (
+                <button
+                  className="copy-button"
+                  onClick={handleCopyToClipboard}
+                  disabled={isCopying}
+                >
+                  {copyButtonText}
+                </button>
+              )}
               <button
-                className="copy-button"
-                onClick={handleCopyToClipboard}
-                disabled={isCopying}
+                className="retranscribe-button"
+                onClick={handleRetranscribe}
+                disabled={isRetranscribing}
               >
-                {copyButtonText}
+                {isRetranscribing ? "Re-transcribing..." : "Re-transcribe"}
               </button>
-            )}
+            </div>
 
             <div className="transcript-section">
               <h3>Transcript</h3>

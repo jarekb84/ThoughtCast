@@ -112,6 +112,7 @@ function App() {
         status={status}
         onStartRecording={handleStartRecording}
         onStopRecording={handleStopRecording}
+        onSessionsChanged={loadSessions}
       />
     </div>
   );

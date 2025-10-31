@@ -65,6 +65,11 @@ fn copy_transcript_to_clipboard(session_id: String) -> Result<(), String> {
     recording::copy_to_clipboard(&transcript)
 }
 
+#[tauri::command]
+fn retranscribe_session(session_id: String) -> Result<String, String> {
+    recording::retranscribe_session(&session_id)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let app_state = AppState {
@@ -94,7 +99,8 @@ pub fn run() {
         get_recording_duration,
         load_config,
         load_transcript,
-        copy_transcript_to_clipboard
+        copy_transcript_to_clipboard,
+        retranscribe_session
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

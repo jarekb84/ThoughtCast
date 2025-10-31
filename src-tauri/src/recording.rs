@@ -456,3 +456,44 @@ pub fn load_transcript(session_id: &str) -> Result<String, String> {
     fs::read_to_string(&transcript_path)
         .map_err(|e| format!("Failed to read transcript file: {}", e))
 }
+
+/// Re-transcribe an existing audio session
+/// This will overwrite any existing transcript for this session
+pub fn retranscribe_session(session_id: &str) -> Result<String, String> {
+    let storage_dir = get_storage_dir()?;
+
+    // Load sessions to find the audio file
+    let mut index = load_sessions()?;
+
+    // Find the session
+    let session = index.sessions.iter_mut()
+        .find(|s| s.id == session_id)
+        .ok_or_else(|| format!("Session not found: {}", session_id))?;
+
+    // Get the full path to the audio file
+    let audio_path = storage_dir.join(&session.audio_path);
+
+    if !audio_path.exists() {
+        return Err(format!("Audio file not found: {}", audio_path.display()));
+    }
+
+    // Run transcription
+    let (transcript_path, transcript_text) = transcribe_audio(&audio_path, session_id)?;
+
+    // Update session with new transcript info
+    session.transcript_path = transcript_path;
+
+    // Update preview
+    session.preview = if transcript_text.len() > 100 {
+        format!("{}...", &transcript_text[..100])
+    } else if transcript_text.is_empty() {
+        "No transcript".to_string()
+    } else {
+        transcript_text.clone()
+    };
+
+    // Save updated sessions
+    save_sessions(&index)?;
+
+    Ok(transcript_text)
+}
