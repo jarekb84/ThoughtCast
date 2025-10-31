@@ -1,6 +1,6 @@
 mod recording;
 
-use recording::{RecordingState, Session, SessionIndex, SharedRecordingState};
+use recording::{RecordingState, Session, SessionIndex, SharedRecordingState, WhisperConfig};
 use std::sync::{Arc, Mutex};
 use tauri::State;
 
@@ -42,6 +42,11 @@ fn get_recording_duration(state: State<AppState>) -> Result<f64, String> {
     }
 }
 
+#[tauri::command]
+fn load_config() -> Result<WhisperConfig, String> {
+    recording::load_config()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let app_state = AppState {
@@ -68,7 +73,8 @@ pub fn run() {
         start_recording,
         stop_recording,
         get_sessions,
-        get_recording_duration
+        get_recording_duration,
+        load_config
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
