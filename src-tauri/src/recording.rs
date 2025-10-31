@@ -19,8 +19,6 @@ pub struct Session {
     #[serde(default)]
     pub transcript_path: String,
     #[serde(default)]
-    pub transcript: String,
-    #[serde(default)]
     pub clipboard_copied: bool,
 }
 
@@ -325,13 +323,6 @@ fn transcribe_audio(audio_path: &Path, id: &str) -> Result<(String, String), Str
     // Delete the temporary Whisper output file
     let _ = fs::remove_file(whisper_output_path);
 
-    // Generate preview (first 100 characters)
-    let preview = if cleaned_transcript.len() > 100 {
-        format!("{}...", &cleaned_transcript[..100])
-    } else {
-        cleaned_transcript.clone()
-    };
-
     // Return relative path and full transcript
     Ok((format!("text/{}", transcript_filename), cleaned_transcript))
 }
@@ -394,7 +385,7 @@ pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
         .map_err(|e| format!("Failed to finalize WAV file: {}", e))?;
 
     // Attempt transcription
-    let (transcript_path, transcript, preview) = match transcribe_audio(&audio_path, &id) {
+    let (transcript_path, preview, clipboard_copied) = match transcribe_audio(&audio_path, &id) {
         Ok((path, text)) => {
             // Generate preview from transcript
             let preview = if text.len() > 100 {
@@ -404,29 +395,30 @@ pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
             } else {
                 text.clone()
             };
-            (path, text, preview)
+
+            // Attempt automatic clipboard copy
+            let clipboard_copied = if !text.is_empty() {
+                match copy_to_clipboard(&text) {
+                    Ok(_) => {
+                        println!("Transcript copied to clipboard");
+                        true
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to copy to clipboard: {}", e);
+                        false
+                    }
+                }
+            } else {
+                false
+            };
+
+            (path, preview, clipboard_copied)
         },
         Err(e) => {
             // Log error but don't fail the recording
             eprintln!("Transcription failed: {}", e);
-            (String::new(), String::new(), format!("Transcription failed: {}", e))
+            (String::new(), format!("Transcription failed: {}", e), false)
         }
-    };
-
-    // Attempt automatic clipboard copy
-    let clipboard_copied = if !transcript.is_empty() {
-        match copy_to_clipboard(&transcript) {
-            Ok(_) => {
-                println!("Transcript copied to clipboard");
-                true
-            }
-            Err(e) => {
-                eprintln!("Failed to copy to clipboard: {}", e);
-                false
-            }
-        }
-    } else {
-        false
     };
 
     // Create session
@@ -437,7 +429,6 @@ pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
         duration,
         preview,
         transcript_path,
-        transcript,
         clipboard_copied,
     };
 
@@ -451,4 +442,17 @@ pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
     save_sessions(&index)?;
 
     Ok(session)
+}
+
+/// Load transcript text from file on demand
+pub fn load_transcript(session_id: &str) -> Result<String, String> {
+    let storage_dir = get_storage_dir()?;
+    let transcript_path = storage_dir.join("text").join(format!("{}.txt", session_id));
+
+    if !transcript_path.exists() {
+        return Err(format!("Transcript file not found: {}", transcript_path.display()));
+    }
+
+    fs::read_to_string(&transcript_path)
+        .map_err(|e| format!("Failed to read transcript file: {}", e))
 }

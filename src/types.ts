@@ -5,7 +5,6 @@ export interface Session {
   audio_path: string;
   duration: number;
   transcript_path?: string;
-  transcript?: string;
   clipboard_copied?: boolean;
 }
 

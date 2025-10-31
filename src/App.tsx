@@ -70,7 +70,7 @@ function App() {
       setIsRecording(false);
 
       // Check transcription and clipboard status
-      if (newSession.transcript && newSession.transcript.length > 0) {
+      if (newSession.transcript_path && newSession.transcript_path.length > 0) {
         if (newSession.clipboard_copied) {
           setStatus("✅ Transcript copied to clipboard!");
         } else {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Session } from "../types";
 import "./MainPanel.css";
@@ -49,6 +49,47 @@ export default function MainPanel({
 }: MainPanelProps) {
   const [copyButtonText, setCopyButtonText] = useState("Copy to Clipboard");
   const [isCopying, setIsCopying] = useState(false);
+  const [transcript, setTranscript] = useState<string | null>(null);
+  const [transcriptError, setTranscriptError] = useState<string | null>(null);
+  const [isLoadingTranscript, setIsLoadingTranscript] = useState(false);
+
+  // Load transcript when selected session changes
+  useEffect(() => {
+    const loadTranscript = async () => {
+      if (!selectedSession) {
+        setTranscript(null);
+        setTranscriptError(null);
+        return;
+      }
+
+      // Skip if no transcript path
+      if (!selectedSession.transcript_path) {
+        setTranscript(null);
+        setTranscriptError("No transcript available");
+        return;
+      }
+
+      setIsLoadingTranscript(true);
+      setTranscriptError(null);
+
+      try {
+        const text = await invoke<string>("load_transcript", {
+          sessionId: selectedSession.id,
+        });
+        setTranscript(text);
+      } catch (error) {
+        console.error("Failed to load transcript:", error);
+        setTranscriptError(
+          error instanceof Error ? error.message : String(error)
+        );
+        setTranscript(null);
+      } finally {
+        setIsLoadingTranscript(false);
+      }
+    };
+
+    loadTranscript();
+  }, [selectedSession?.id]);
 
   const handleCopyToClipboard = async () => {
     if (!selectedSession) return;
@@ -117,24 +158,28 @@ export default function MainPanel({
               )}
             </div>
 
-            {selectedSession.transcript &&
-              selectedSession.transcript.length > 0 && (
-                <button
-                  className="copy-button"
-                  onClick={handleCopyToClipboard}
-                  disabled={isCopying}
-                >
-                  {copyButtonText}
-                </button>
-              )}
+            {transcript && transcript.length > 0 && (
+              <button
+                className="copy-button"
+                onClick={handleCopyToClipboard}
+                disabled={isCopying}
+              >
+                {copyButtonText}
+              </button>
+            )}
 
             <div className="transcript-section">
               <h3>Transcript</h3>
-              {selectedSession.transcript &&
-              selectedSession.transcript.length > 0 ? (
-                <div className="transcript-text">
-                  {selectedSession.transcript}
+              {isLoadingTranscript ? (
+                <div className="transcript-text no-transcript">
+                  Loading transcript...
                 </div>
+              ) : transcriptError ? (
+                <div className="transcript-text no-transcript">
+                  {transcriptError}
+                </div>
+              ) : transcript && transcript.length > 0 ? (
+                <div className="transcript-text">{transcript}</div>
               ) : (
                 <div className="transcript-text no-transcript">
                   {selectedSession.preview || "No transcript available"}
