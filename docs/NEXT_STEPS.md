@@ -104,31 +104,15 @@ According to the PRD, the skeleton phase is complete when:
 
 **Note:** Actual building and running requires Rust installation first!
 
-## 📋 What's Next - Implementation Phases
+## 📋 What's Next - Future Enhancements
 
-### Phase 2: Basic Recording (Next Phase)
-- Implement microphone access using `cpal` crate
-- Add recording start/stop functionality
-- Implement recording timer
-- Save audio files to disk
-
-### Phase 3: Transcription Integration
-- Integrate with Whisper.cpp
-- Add configuration for Whisper paths
-- Implement transcription pipeline
-- Clean up timestamps from output
-
-### Phase 4: Data Persistence
-- Replace mock data with real session storage
-- Implement session index (JSON file)
-- Add file system operations
-- Load sessions on app startup
-
-### Phase 5: Polish & Features
-- Add clipboard integration
-- Implement "Import Audio File" feature
-- Add status indicators
-- Error handling and user feedback
+### Potential Features
+- Search and filter transcripts
+- Export sessions to various formats
+- Import audio files for transcription
+- Advanced error handling and recovery
+- Performance optimizations
+- Additional language support
 
 ## 📁 Project Structure Reference
 

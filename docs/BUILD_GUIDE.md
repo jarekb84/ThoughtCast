@@ -94,23 +94,16 @@ The built application will be in `src-tauri/target/release/bundle/`
 
 ## Current Status
 
-This is the **skeleton/MVP version** of ThoughtCast. The current features include:
+ThoughtCast is a fully functional voice transcription app with the following features:
 
 ### ✅ Implemented
-- Basic Tauri + React application structure
-- Two-panel layout (sidebar + main panel)
-- Mock session data (5 sample sessions)
-- Session list with clickable items
-- Session selection state management
-- UI updates when clicking sessions
-- Proper window configuration (1200x800)
-
-### ⚠️ Not Yet Implemented
-- Microphone recording
-- Audio transcription
-- File system operations
-- Configuration management
-- Clipboard integration
+- Microphone recording with live timer
+- Automatic Whisper.cpp transcription after recording
+- Persistent storage of audio files and transcripts
+- Session history with searchable transcript previews
+- Full transcript display for each session
+- Clipboard integration (auto-copy transcripts with selection)
+- Cross-platform desktop app (Windows & macOS)
 
 ## Project Structure
 
@@ -162,15 +155,6 @@ ThoughtCast/
 - Check the console for errors
 - Ensure port 5173 is not already in use
 - Try running `npm run dev` first to verify Vite works
-
-## Next Steps
-
-After verifying the skeleton works, the next implementation phases are:
-
-1. **Phase 2**: Microphone recording functionality
-2. **Phase 3**: Whisper.cpp integration for transcription
-3. **Phase 4**: Persistent storage and session management
-4. **Phase 5**: Clipboard integration and polish
 
 ## Getting Help
 

@@ -18,11 +18,10 @@ ThoughtCast now includes **microphone recording with automatic Whisper transcrip
 - ✅ Persistent storage of audio files and transcripts
 - ✅ Session history with searchable transcript previews
 - ✅ Full transcript display for each session
+- ✅ Clipboard integration (auto-copy transcripts with selection)
 - ✅ Cross-platform desktop app (Windows & macOS)
 
 ### 🚧 Coming Soon
-- Clipboard integration (auto-copy transcripts)
-- Audio file import
 - Search and filter transcripts
 - Export sessions
 
