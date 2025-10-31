@@ -3,9 +3,36 @@ import "./MainPanel.css";
 
 interface MainPanelProps {
   selectedSession: Session | null;
+  isRecording: boolean;
+  recordingDuration: number;
+  status: string;
+  onStartRecording: () => void;
+  onStopRecording: () => void;
 }
 
-export default function MainPanel({ selectedSession }: MainPanelProps) {
+function formatDuration(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+}
+
+function formatTimestamp(timestamp: string): string {
+  try {
+    const date = new Date(timestamp);
+    return date.toLocaleString();
+  } catch {
+    return timestamp;
+  }
+}
+
+export default function MainPanel({
+  selectedSession,
+  isRecording,
+  recordingDuration,
+  status,
+  onStartRecording,
+  onStopRecording,
+}: MainPanelProps) {
   return (
     <div className="main-panel">
       <div className="main-panel-header">
@@ -13,38 +40,50 @@ export default function MainPanel({ selectedSession }: MainPanelProps) {
       </div>
 
       <div className="controls-section">
-        <button className="record-button" disabled>
-          ● Record
-        </button>
-        <div className="status-text">Status: Not implemented yet</div>
+        {isRecording ? (
+          <>
+            <button
+              className="record-button recording"
+              onClick={onStopRecording}
+            >
+              ■ Stop
+            </button>
+            <div className="recording-timer">{formatDuration(recordingDuration)}</div>
+          </>
+        ) : (
+          <button className="record-button" onClick={onStartRecording}>
+            ● Record
+          </button>
+        )}
+        <div className="status-text">Status: {status}</div>
       </div>
 
       <div className="session-details">
         {selectedSession ? (
           <>
-            <h2>Selected Session</h2>
+            <h2>Session Details</h2>
             <div className="session-info">
               <div className="info-item">
                 <strong>ID:</strong> {selectedSession.id}
               </div>
               <div className="info-item">
-                <strong>Time:</strong> {selectedSession.timestamp}
+                <strong>Time:</strong> {formatTimestamp(selectedSession.timestamp)}
+              </div>
+              <div className="info-item">
+                <strong>Duration:</strong> {formatDuration(selectedSession.duration)}
+              </div>
+              <div className="info-item">
+                <strong>Audio:</strong> {selectedSession.audio_path}
               </div>
             </div>
             <div className="transcript-section">
-              <h3>Transcript Preview</h3>
+              <h3>Preview</h3>
               <div className="transcript-text">{selectedSession.preview}</div>
-              <div className="implementation-note">
-                (Recording functionality coming in next phase)
-              </div>
             </div>
           </>
         ) : (
           <div className="no-selection">
-            <p>Select a session from the sidebar or start a new recording</p>
-            <p className="implementation-note">
-              Recording functionality will be implemented in the next phase
-            </p>
+            <p>Click Record to start capturing audio, or select a session from the sidebar</p>
           </div>
         )}
       </div>
