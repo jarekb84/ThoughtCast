@@ -271,6 +271,24 @@ fn transcribe_audio(audio_path: &Path, id: &str) -> Result<(String, String), Str
 
     // Run Whisper.cpp with -otxt flag to generate transcript file
     // Whisper will create a file named {audio_path}.txt
+    // On Windows, we use creation flags to hide the console window
+    #[cfg(target_os = "windows")]
+    let output = {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        Command::new(&config.whisper_path)
+            .arg("-m")
+            .arg(&config.model_path)
+            .arg("-f")
+            .arg(audio_path)
+            .arg("-otxt")
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|_| "Transcription service couldn't start. Check your Whisper.cpp installation.".to_string())?
+    };
+
+    #[cfg(not(target_os = "windows"))]
     let output = Command::new(&config.whisper_path)
         .arg("-m")
         .arg(&config.model_path)

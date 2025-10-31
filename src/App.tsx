@@ -9,6 +9,7 @@ function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [status, setStatus] = useState("Ready to record");
 
@@ -65,9 +66,10 @@ function App() {
 
   const handleStopRecording = async () => {
     try {
+      setIsRecording(false);
+      setIsProcessing(true);
       setStatus("🔄 Saving and transcribing audio...");
       const newSession = await invoke<Session>("stop_recording");
-      setIsRecording(false);
 
       // Check transcription and clipboard status
       if (newSession.transcript_path && newSession.transcript_path.length > 0) {
@@ -91,7 +93,8 @@ function App() {
     } catch (error) {
       console.error("Failed to stop recording:", error);
       setStatus(`❌ Error: ${error}`);
-      setIsRecording(false);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -108,6 +111,7 @@ function App() {
       <MainPanel
         selectedSession={selectedSession}
         isRecording={isRecording}
+        isProcessing={isProcessing}
         recordingDuration={recordingDuration}
         status={status}
         onStartRecording={handleStartRecording}

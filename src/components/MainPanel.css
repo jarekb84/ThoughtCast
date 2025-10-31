@@ -52,6 +52,16 @@
   background-color: #c82333;
 }
 
+.record-button.processing {
+  background-color: #ff9800;
+  cursor: not-allowed;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.record-button.processing:hover {
+  background-color: #ff9800;
+}
+
 @keyframes pulse {
   0%, 100% {
     opacity: 1;

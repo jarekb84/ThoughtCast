@@ -6,6 +6,7 @@ import "./MainPanel.css";
 interface MainPanelProps {
   selectedSession: Session | null;
   isRecording: boolean;
+  isProcessing: boolean;
   recordingDuration: number;
   status: string;
   onStartRecording: () => void;
@@ -43,6 +44,7 @@ function formatFilePath(path: string): string {
 export default function MainPanel({
   selectedSession,
   isRecording,
+  isProcessing,
   recordingDuration,
   status,
   onStartRecording,
@@ -155,6 +157,15 @@ export default function MainPanel({
               ■ Stop
             </button>
             <div className="recording-timer">{formatDuration(recordingDuration)}</div>
+          </>
+        ) : isProcessing ? (
+          <>
+            <button
+              className="record-button processing"
+              disabled
+            >
+              ⏳ Processing...
+            </button>
           </>
         ) : (
           <button className="record-button" onClick={onStartRecording}>
