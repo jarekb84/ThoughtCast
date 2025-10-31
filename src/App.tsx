@@ -56,24 +56,28 @@ function App() {
     try {
       await invoke("start_recording");
       setIsRecording(true);
-      setStatus("Recording...");
+      setStatus("⏺️ Recording...");
     } catch (error) {
       console.error("Failed to start recording:", error);
-      setStatus(`Error: ${error}`);
+      setStatus(`❌ Error: ${error}`);
     }
   };
 
   const handleStopRecording = async () => {
     try {
-      setStatus("Saving and transcribing audio...");
+      setStatus("🔄 Saving and transcribing audio...");
       const newSession = await invoke<Session>("stop_recording");
       setIsRecording(false);
 
-      // Check if transcription succeeded
+      // Check transcription and clipboard status
       if (newSession.transcript && newSession.transcript.length > 0) {
-        setStatus("Transcription complete!");
+        if (newSession.clipboard_copied) {
+          setStatus("✅ Transcript copied to clipboard!");
+        } else {
+          setStatus("⚠️ Transcription complete (clipboard copy failed - use Copy button)");
+        }
       } else {
-        setStatus("Recording saved (transcription failed)");
+        setStatus("⚠️ Recording saved (transcription failed - check Whisper setup)");
       }
 
       // Reload sessions to include the new one
@@ -82,11 +86,11 @@ function App() {
       // Select the new session
       setSelectedId(newSession.id);
 
-      // Reset status after a moment
-      setTimeout(() => setStatus("Ready to record"), 3000);
+      // Reset status after 5 seconds
+      setTimeout(() => setStatus("Ready to record"), 5000);
     } catch (error) {
       console.error("Failed to stop recording:", error);
-      setStatus(`Error: ${error}`);
+      setStatus(`❌ Error: ${error}`);
       setIsRecording(false);
     }
   };

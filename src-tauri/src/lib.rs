@@ -47,6 +47,24 @@ fn load_config() -> Result<WhisperConfig, String> {
     recording::load_config()
 }
 
+#[tauri::command]
+fn copy_transcript_to_clipboard(session_id: String) -> Result<(), String> {
+    // Load sessions
+    let index = recording::load_sessions()?;
+
+    // Find session by ID
+    let session = index.sessions.iter()
+        .find(|s| s.id == session_id)
+        .ok_or("Session not found")?;
+
+    // Copy transcript to clipboard
+    if session.transcript.is_empty() {
+        return Err("No transcript available for this session".to_string());
+    }
+
+    recording::copy_to_clipboard(&session.transcript)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let app_state = AppState {
@@ -74,7 +92,8 @@ pub fn run() {
         stop_recording,
         get_sessions,
         get_recording_duration,
-        load_config
+        load_config,
+        copy_transcript_to_clipboard
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

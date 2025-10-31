@@ -7,6 +7,7 @@ use std::thread;
 use std::process::Command;
 use std::time::Duration;
 use chrono::{DateTime, Utc};
+use arboard::Clipboard;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
@@ -19,6 +20,8 @@ pub struct Session {
     pub transcript_path: String,
     #[serde(default)]
     pub transcript: String,
+    #[serde(default)]
+    pub clipboard_copied: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,13 +71,25 @@ pub fn get_storage_dir() -> Result<PathBuf, String> {
     Ok(storage_dir)
 }
 
+/// Copy text to system clipboard
+pub fn copy_to_clipboard(text: &str) -> Result<(), String> {
+    let mut clipboard = Clipboard::new()
+        .map_err(|e| format!("Failed to access clipboard: {}", e))?;
+
+    clipboard.set_text(text)
+        .map_err(|e| format!("Failed to copy to clipboard: {}", e))?;
+
+    Ok(())
+}
+
 pub fn load_config() -> Result<WhisperConfig, String> {
     let storage_dir = get_storage_dir()?;
     let config_file = storage_dir.join("config.json");
 
     if !config_file.exists() {
         return Err(format!(
-            "Config file not found. Please create config.json at: {}\n\
+            "Whisper.cpp is not set up. Please create config.json at: {}\n\
+            See README for setup instructions.\n\
             Example content:\n\
             {{\n\
               \"whisperPath\": \"C:\\\\whisper\\\\whisper.exe\",\n\
@@ -126,7 +141,7 @@ pub fn start_recording(state: SharedRecordingState) -> Result<(), String> {
     let mut state_guard = state.lock().unwrap();
 
     if state_guard.is_recording {
-        return Err("Already recording".to_string());
+        return Err("Recording is already in progress.".to_string());
     }
 
     // Clear previous samples
@@ -150,7 +165,7 @@ pub fn start_recording(state: SharedRecordingState) -> Result<(), String> {
         let device = match host.default_input_device() {
             Some(d) => d,
             None => {
-                eprintln!("No input device available");
+                eprintln!("No microphone detected. Please check your audio settings.");
                 return;
             }
         };
@@ -247,13 +262,13 @@ fn transcribe_audio(audio_path: &Path, id: &str) -> Result<(String, String), Str
     // Verify Whisper executable exists
     let whisper_path = Path::new(&config.whisper_path);
     if !whisper_path.exists() {
-        return Err(format!("Whisper executable not found at: {}", config.whisper_path));
+        return Err("Whisper.cpp is not set up. Please see the README for setup instructions.".to_string());
     }
 
     // Verify model exists
     let model_path = Path::new(&config.model_path);
     if !model_path.exists() {
-        return Err(format!("Whisper model not found at: {}", config.model_path));
+        return Err("Whisper model file is missing. Please download a model - see README.".to_string());
     }
 
     // Run Whisper.cpp with -otxt flag to generate transcript file
@@ -265,7 +280,7 @@ fn transcribe_audio(audio_path: &Path, id: &str) -> Result<(String, String), Str
         .arg(audio_path)
         .arg("-otxt")
         .output()
-        .map_err(|e| format!("Failed to execute Whisper: {}", e))?;
+        .map_err(|_| "Transcription service couldn't start. Check your Whisper.cpp installation.".to_string())?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -325,7 +340,7 @@ pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
     let mut state_guard = state.lock().unwrap();
 
     if !state_guard.is_recording {
-        return Err("Not recording".to_string());
+        return Err("No active recording to stop.".to_string());
     }
 
     // Mark as not recording (this will stop the recording thread)
@@ -398,6 +413,22 @@ pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
         }
     };
 
+    // Attempt automatic clipboard copy
+    let clipboard_copied = if !transcript.is_empty() {
+        match copy_to_clipboard(&transcript) {
+            Ok(_) => {
+                println!("Transcript copied to clipboard");
+                true
+            }
+            Err(e) => {
+                eprintln!("Failed to copy to clipboard: {}", e);
+                false
+            }
+        }
+    } else {
+        false
+    };
+
     // Create session
     let session = Session {
         id: id.clone(),
@@ -407,6 +438,7 @@ pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
         preview,
         transcript_path,
         transcript,
+        clipboard_copied,
     };
 
     // Load existing sessions
