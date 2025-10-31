@@ -8,9 +8,14 @@
 }
 
 .main-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 20px 30px;
   background-color: #f9f9f9;
   border-bottom: 1px solid #e0e0e0;
+  min-height: 70px;
+  box-sizing: border-box;
 }
 
 .main-panel-header h1 {
@@ -20,23 +25,30 @@
   color: #333;
 }
 
-.controls-section {
-  padding: 30px;
-  border-bottom: 1px solid #e0e0e0;
-  background-color: #fafafa;
+.recording-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .record-button {
-  padding: 15px 40px;
-  font-size: 16px;
+  padding: 10px 24px;
+  font-size: 14px;
   font-weight: 600;
   background-color: #0066cc;
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   opacity: 1;
   transition: all 0.3s;
+  white-space: nowrap;
+  min-width: 90px;
+  height: 40px;
+  line-height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .record-button:hover {
@@ -72,11 +84,20 @@
 }
 
 .recording-timer {
-  margin-top: 15px;
-  font-size: 24px;
+  font-size: 16px;
   font-weight: 600;
   color: #dc3545;
   font-family: monospace;
+  min-width: 50px;
+  text-align: right;
+}
+
+.recording-status {
+  font-size: 14px;
+  font-weight: 500;
+  color: #ff9800;
+  min-width: 100px;
+  text-align: right;
 }
 
 .transcript-actions {

@@ -145,33 +145,30 @@ export default function MainPanel({
     <div className="main-panel">
       <div className="main-panel-header">
         <h1>ThoughtCast</h1>
-      </div>
-
-      <div className="controls-section">
-        {isRecording ? (
-          <>
-            <button
-              className="record-button recording"
-              onClick={onStopRecording}
-            >
-              ■ Stop
-            </button>
-            <div className="recording-timer">{formatDuration(recordingDuration)}</div>
-          </>
-        ) : isProcessing ? (
-          <>
+        <div className="recording-controls">
+          {isRecording ? (
+            <>
+              <div className="recording-timer">{formatDuration(recordingDuration)}</div>
+              <button
+                className="record-button recording"
+                onClick={onStopRecording}
+              >
+                ■ Stop
+              </button>
+            </>
+          ) : isProcessing ? (
             <button
               className="record-button processing"
               disabled
             >
               ⏳ Processing...
             </button>
-          </>
-        ) : (
-          <button className="record-button" onClick={onStartRecording}>
-            ● Record
-          </button>
-        )}
+          ) : (
+            <button className="record-button" onClick={onStartRecording}>
+              ● Record
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="session-details">

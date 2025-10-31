@@ -10,11 +10,13 @@
 
 .session-list h2 {
   margin: 0;
-  padding: 20px;
+  padding: 24px;
   font-size: 18px;
   font-weight: 600;
   background-color: #e8e8e8;
   border-bottom: 1px solid #ddd;
+  height: 80px;
+  box-sizing: border-box;
 }
 
 .sessions {
