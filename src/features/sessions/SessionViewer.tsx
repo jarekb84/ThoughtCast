@@ -5,6 +5,7 @@ import { formatTimestamp } from "../../shared/formatters/date-time";
 import { formatDuration } from "../../shared/formatters/duration";
 import { formatFilePath } from "../../shared/formatters/file-path";
 import RecordingControls from "../recording/RecordingControls";
+import { Button, Card, InfoRow } from "../../shared/components";
 import "./SessionViewer.css";
 
 interface SessionViewerProps {
@@ -135,44 +136,44 @@ export default function SessionViewer({
         {selectedSession ? (
           <>
             <h2>Session Details</h2>
-            <div className="session-info">
-              <div className="info-item">
-                <strong>Recorded:</strong>{" "}
-                {formatTimestamp(selectedSession.timestamp)}
-              </div>
-              <div className="info-item">
-                <strong>Duration:</strong>{" "}
-                {formatDuration(selectedSession.duration)}
-              </div>
-              <div className="info-item">
-                <strong>Audio:</strong>{" "}
-                {formatFilePath(selectedSession.audio_path)}
-              </div>
+            <Card variant="subtle" padding="md">
+              <InfoRow
+                label="Recorded"
+                value={formatTimestamp(selectedSession.timestamp)}
+              />
+              <InfoRow
+                label="Duration"
+                value={formatDuration(selectedSession.duration)}
+              />
+              <InfoRow
+                label="Audio"
+                value={formatFilePath(selectedSession.audio_path)}
+              />
               {selectedSession.transcript_path && (
-                <div className="info-item">
-                  <strong>Transcript:</strong>{" "}
-                  {formatFilePath(selectedSession.transcript_path)}
-                </div>
+                <InfoRow
+                  label="Transcript"
+                  value={formatFilePath(selectedSession.transcript_path)}
+                />
               )}
-            </div>
+            </Card>
 
             <div className="transcript-actions">
               {transcript && transcript.length > 0 && (
-                <button
-                  className="copy-button"
+                <Button
+                  variant="primary"
                   onClick={handleCopyToClipboard}
                   disabled={isCopying}
                 >
                   {copyButtonText}
-                </button>
+                </Button>
               )}
-              <button
-                className="retranscribe-button"
+              <Button
+                variant="success"
                 onClick={handleRetranscribe}
                 disabled={isRetranscribing}
               >
                 {isRetranscribing ? "Re-transcribing..." : "Re-transcribe"}
-              </button>
+              </Button>
             </div>
 
             <div className="transcript-section">

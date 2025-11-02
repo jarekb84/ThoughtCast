@@ -1,4 +1,5 @@
 import { formatDuration } from "../../shared/formatters/duration";
+import { Button } from "../../shared/components";
 import "./RecordingControls.css";
 
 interface RecordingControlsProps {
@@ -27,24 +28,26 @@ export default function RecordingControls({
       {isRecording ? (
         <>
           <div className="recording-timer">{formatDuration(recordingDuration)}</div>
-          <button
-            className="record-button recording"
+          <Button
+            variant="danger"
             onClick={onStopRecording}
+            className="btn-pulse"
           >
             ■ Stop
-          </button>
+          </Button>
         </>
       ) : isProcessing ? (
-        <button
-          className="record-button processing"
+        <Button
+          variant="warning"
           disabled
+          className="btn-pulse"
         >
           ⏳ Processing...
-        </button>
+        </Button>
       ) : (
-        <button className="record-button" onClick={onStartRecording}>
+        <Button variant="primary" onClick={onStartRecording}>
           ● Record
-        </button>
+        </Button>
       )}
     </div>
   );

@@ -1,6 +1,5 @@
 import { Session } from "./types";
-import { formatShortTimestamp } from "../../shared/formatters/date-time";
-import { formatDuration } from "../../shared/formatters/duration";
+import SessionListItem from "./SessionListItem";
 import "./SessionList.css";
 
 interface SessionListProps {
@@ -9,6 +8,12 @@ interface SessionListProps {
   onSelectSession: (id: string) => void;
 }
 
+/**
+ * SessionList Component
+ *
+ * Displays a scrollable list of recording sessions in the sidebar.
+ * Uses SessionListItem for consistent presentation.
+ */
 export default function SessionList({
   sessions,
   selectedId,
@@ -16,33 +21,18 @@ export default function SessionList({
 }: SessionListProps) {
   return (
     <div className="session-list">
-      <h2>Sessions</h2>
-      <div className="sessions">
+      <h2 className="session-list-title">Sessions</h2>
+      <div className="session-list-items">
         {sessions.length === 0 ? (
-          <div className="no-sessions">No recordings yet</div>
+          <div className="session-list-empty">No recordings yet</div>
         ) : (
           sessions.map((session) => (
-            <div
+            <SessionListItem
               key={session.id}
-              className={`session-item ${
-                session.id === selectedId ? "selected" : ""
-              }`}
-              onClick={() => onSelectSession(session.id)}
-            >
-              <div className="session-header">
-                <span className="session-icon">🎙️</span>
-                <span className="session-timestamp">
-                  {formatShortTimestamp(session.timestamp)}
-                </span>
-                <span className="session-duration">
-                  ({formatDuration(session.duration)})
-                </span>
-              </div>
-              <div className="session-preview">
-                {session.preview.substring(0, 50)}
-                {session.preview.length > 50 && "..."}
-              </div>
-            </div>
+              session={session}
+              isSelected={session.id === selectedId}
+              onSelect={() => onSelectSession(session.id)}
+            />
           ))
         )}
       </div>
