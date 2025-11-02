@@ -1,0 +1,87 @@
+@import "../../shared/styles/design-system.css";
+
+/* L2 SessionListItem Component Styles */
+
+.session-list-item {
+  padding: var(--space-md);
+  margin: var(--space-sm);
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+/* Unselected hover state - subtle */
+.session-list-item:hover:not(.session-list-item-selected) {
+  background-color: var(--color-bg-secondary);
+  border-color: var(--color-border);
+}
+
+/* Selected state - subtle accent with harmonious colors */
+.session-list-item-selected {
+  background-color: var(--color-primary-light);
+  border-color: var(--color-primary-border);
+}
+
+/* Selected hover state - intensify the accent to match border */
+.session-list-item-selected:hover {
+  background-color: rgba(144, 202, 249, 0.3);
+  border-color: var(--color-primary);
+}
+
+/* Header section */
+.session-list-item-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.session-list-item-icon {
+  font-size: var(--font-size-lg);
+}
+
+.session-list-item-timestamp {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+/* Unselected state - lighter gray text that fades into background */
+.session-list-item:not(.session-list-item-selected) .session-list-item-timestamp {
+  color: var(--color-text-tertiary);
+}
+
+/* Selected state - more visible text */
+.session-list-item-selected .session-list-item-timestamp {
+  color: var(--color-text-secondary);
+}
+
+.session-list-item-duration {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+/* Preview text */
+.session-list-item-preview {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  line-height: var(--line-height-normal);
+}
+
+/* Unselected preview - even lighter */
+.session-list-item:not(.session-list-item-selected) .session-list-item-preview {
+  color: var(--color-text-muted);
+}
+
+/* Selected preview - more readable */
+.session-list-item-selected .session-list-item-preview {
+  color: var(--color-text-secondary);
+}
+
+/* Focus states for accessibility */
+.session-list-item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}

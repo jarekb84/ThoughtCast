@@ -1,0 +1,148 @@
+/* L1 Base Button Styles */
+
+.btn {
+  /* Base structure */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  /* Responsive sizing - internally responsive, not external variants */
+  padding: 8px 16px;
+  min-width: 80px;
+  height: 36px;
+
+  /* Typography */
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+
+  /* Base appearance */
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+
+  /* Smooth transitions */
+  transition: all 0.2s ease-in-out;
+}
+
+/* Responsive sizing for larger screens */
+@media (min-width: 768px) {
+  .btn {
+    padding: 10px 20px;
+    min-width: 90px;
+    height: 40px;
+  }
+}
+
+/* Primary variant - subtle blue */
+.btn-primary {
+  background-color: #4a90e2;
+  color: white;
+  border-color: #4a90e2;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #357abd;
+  border-color: #357abd;
+}
+
+.btn-primary:active:not(:disabled) {
+  background-color: #2968a3;
+  border-color: #2968a3;
+}
+
+/* Secondary variant - subtle gray */
+.btn-secondary {
+  background-color: #f5f5f5;
+  color: #555;
+  border-color: #ddd;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #e8e8e8;
+  border-color: #ccc;
+  color: #333;
+}
+
+.btn-secondary:active:not(:disabled) {
+  background-color: #ddd;
+  border-color: #bbb;
+}
+
+/* Success variant - subtle green */
+.btn-success {
+  background-color: #28a745;
+  color: white;
+  border-color: #28a745;
+}
+
+.btn-success:hover:not(:disabled) {
+  background-color: #218838;
+  border-color: #218838;
+}
+
+.btn-success:active:not(:disabled) {
+  background-color: #1e7e34;
+  border-color: #1e7e34;
+}
+
+/* Danger variant - red for destructive actions */
+.btn-danger {
+  background-color: #dc3545;
+  color: white;
+  border-color: #dc3545;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: #c82333;
+  border-color: #c82333;
+}
+
+.btn-danger:active:not(:disabled) {
+  background-color: #bd2130;
+  border-color: #bd2130;
+}
+
+/* Warning variant - orange for processing states */
+.btn-warning {
+  background-color: #ff9800;
+  color: white;
+  border-color: #ff9800;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background-color: #ff9800;
+  border-color: #ff9800;
+}
+
+/* Disabled state - consistent across all variants */
+.btn-disabled,
+.btn:disabled {
+  background-color: #e0e0e0;
+  color: #999;
+  border-color: #ddd;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Focus states for accessibility */
+.btn:focus-visible {
+  outline: 2px solid #4a90e2;
+  outline-offset: 2px;
+}
+
+/* Pulse animation for special states (can be added via className) */
+@keyframes btn-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.btn-pulse {
+  animation: btn-pulse 2s ease-in-out infinite;
+}

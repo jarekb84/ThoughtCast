@@ -1,0 +1,107 @@
+/**
+ * Design System - CSS Custom Properties
+ *
+ * Defines consistent spacing, colors, typography, and other design tokens
+ * for use throughout the application.
+ */
+
+:root {
+  /* Spacing scale - based on 4px base unit */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 20px;
+  --space-2xl: 24px;
+  --space-3xl: 32px;
+  --space-4xl: 40px;
+
+  /* Color palette - Subtle and harmonious */
+
+  /* Primary colors - Blues for main actions */
+  --color-primary: #4a90e2;
+  --color-primary-hover: #357abd;
+  --color-primary-active: #2968a3;
+  --color-primary-light: #e3f2fd;
+  --color-primary-border: #90caf9;
+
+  /* Secondary colors - Grays for secondary actions */
+  --color-secondary: #f5f5f5;
+  --color-secondary-hover: #e8e8e8;
+  --color-secondary-active: #ddd;
+  --color-secondary-border: #ccc;
+
+  /* Success colors - Greens */
+  --color-success: #28a745;
+  --color-success-hover: #218838;
+  --color-success-active: #1e7e34;
+
+  /* Danger colors - Reds */
+  --color-danger: #dc3545;
+  --color-danger-hover: #c82333;
+  --color-danger-active: #bd2130;
+
+  /* Warning colors - Oranges */
+  --color-warning: #ff9800;
+  --color-warning-hover: #f57c00;
+
+  /* Neutral grays */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f9f9f9;
+  --color-bg-tertiary: #f5f5f5;
+  --color-bg-quaternary: #e8e8e8;
+
+  /* Border colors */
+  --color-border-light: #f0f0f0;
+  --color-border: #e0e0e0;
+  --color-border-medium: #ddd;
+  --color-border-dark: #ccc;
+
+  /* Text colors */
+  --color-text-primary: #333;
+  --color-text-secondary: #555;
+  --color-text-tertiary: #666;
+  --color-text-muted: #999;
+  --color-text-disabled: #bbb;
+
+  /* Typography */
+  --font-family-base: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  --font-family-mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas,
+    "Courier New", monospace;
+
+  --font-size-xs: 11px;
+  --font-size-sm: 13px;
+  --font-size-base: 14px;
+  --font-size-md: 15px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 20px;
+  --font-size-3xl: 24px;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.4;
+  --line-height-relaxed: 1.6;
+
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+
+  /* Shadows - subtle elevation */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.1);
+
+  /* Transitions */
+  --transition-fast: 0.1s ease-in-out;
+  --transition-base: 0.2s ease-in-out;
+  --transition-slow: 0.3s ease-in-out;
+}
