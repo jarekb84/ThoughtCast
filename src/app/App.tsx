@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import SessionList from "./components/SessionList";
-import MainPanel from "./components/MainPanel";
-import { Session, SessionIndex } from "./types";
+import SessionList from "../features/sessions/SessionList";
+import SessionViewer from "../features/sessions/SessionViewer";
+import { Session, SessionIndex } from "../features/sessions/types";
 import "./App.css";
 
 function App() {
@@ -108,7 +108,7 @@ function App() {
         selectedId={selectedId}
         onSelectSession={setSelectedId}
       />
-      <MainPanel
+      <SessionViewer
         selectedSession={selectedSession}
         isRecording={isRecording}
         isProcessing={isProcessing}

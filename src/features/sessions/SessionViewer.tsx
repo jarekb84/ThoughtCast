@@ -1,9 +1,13 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Session } from "../types";
-import "./MainPanel.css";
+import { Session } from "./types";
+import { formatTimestamp } from "../../shared/formatters/date-time";
+import { formatDuration } from "../../shared/formatters/duration";
+import { formatFilePath } from "../../shared/formatters/file-path";
+import RecordingControls from "../recording/RecordingControls";
+import "./SessionViewer.css";
 
-interface MainPanelProps {
+interface SessionViewerProps {
   selectedSession: Session | null;
   isRecording: boolean;
   isProcessing: boolean;
@@ -14,34 +18,7 @@ interface MainPanelProps {
   onSessionsChanged: () => Promise<void>;
 }
 
-function formatDuration(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
-}
-
-function formatTimestamp(timestamp: string): string {
-  try {
-    const date = new Date(timestamp);
-    return date.toLocaleString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-  } catch {
-    return timestamp;
-  }
-}
-
-function formatFilePath(path: string): string {
-  // Shorten path for display (replace home directory)
-  return path.replace(/^.*?(ThoughtCast.*)/, "~/$1");
-}
-
-export default function MainPanel({
+export default function SessionViewer({
   selectedSession,
   isRecording,
   isProcessing,
@@ -50,7 +27,7 @@ export default function MainPanel({
   onStartRecording,
   onStopRecording,
   onSessionsChanged,
-}: MainPanelProps) {
+}: SessionViewerProps) {
   const [copyButtonText, setCopyButtonText] = useState("Copy to Clipboard");
   const [isCopying, setIsCopying] = useState(false);
   const [transcript, setTranscript] = useState<string | null>(null);
@@ -142,33 +119,16 @@ export default function MainPanel({
   };
 
   return (
-    <div className="main-panel">
-      <div className="main-panel-header">
+    <div className="session-viewer">
+      <div className="session-viewer-header">
         <h1>ThoughtCast</h1>
-        <div className="recording-controls">
-          {isRecording ? (
-            <>
-              <div className="recording-timer">{formatDuration(recordingDuration)}</div>
-              <button
-                className="record-button recording"
-                onClick={onStopRecording}
-              >
-                ■ Stop
-              </button>
-            </>
-          ) : isProcessing ? (
-            <button
-              className="record-button processing"
-              disabled
-            >
-              ⏳ Processing...
-            </button>
-          ) : (
-            <button className="record-button" onClick={onStartRecording}>
-              ● Record
-            </button>
-          )}
-        </div>
+        <RecordingControls
+          isRecording={isRecording}
+          isProcessing={isProcessing}
+          recordingDuration={recordingDuration}
+          onStartRecording={onStartRecording}
+          onStopRecording={onStopRecording}
+        />
       </div>
 
       <div className="session-details">
