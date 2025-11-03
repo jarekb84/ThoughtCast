@@ -1,5 +1,6 @@
 // Types
 export type { Session, SessionIndex } from './Session';
+export type { RecordingStatus } from './RecordingStatus';
 export { ApiError } from './ApiError';
 
 // Service Interfaces

@@ -9,7 +9,8 @@
       "Bash(npm run integration-precheck:*)",
       "Bash(cargo check:*)",
       "Bash(cargo test:*)",
-      "Bash(npm run test:*)"
+      "Bash(npm run test:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []

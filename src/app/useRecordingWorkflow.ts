@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Session, useApi } from '../api';
+import { Session, RecordingStatus, useApi } from '../api';
 import { logger } from '../shared/utils/logger';
 
 /**
@@ -39,7 +39,7 @@ export function autoSelectFirstSession(
 interface RecordingWorkflowState {
   sessions: Session[];
   selectedId: string | null;
-  isRecording: boolean;
+  recordingStatus: RecordingStatus;
   isProcessing: boolean;
   recordingDuration: number;
   status: string;
@@ -48,6 +48,9 @@ interface RecordingWorkflowState {
 
 interface RecordingWorkflowActions {
   handleStartRecording: () => Promise<void>;
+  handlePauseRecording: () => Promise<void>;
+  handleResumeRecording: () => Promise<void>;
+  handleCancelRecording: () => Promise<void>;
   handleStopRecording: () => Promise<void>;
   setSelectedId: (id: string | null) => void;
   loadSessions: () => Promise<void>;
@@ -58,7 +61,7 @@ interface RecordingWorkflowActions {
  *
  * Orchestrates:
  * - Session loading and selection
- * - Recording lifecycle (start/stop)
+ * - Recording lifecycle (start/pause/resume/cancel/stop)
  * - Duration tracking
  * - Status message management
  */
@@ -66,7 +69,7 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
   const { sessionService, recordingService } = useApi();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
+  const [recordingStatus, setRecordingStatus] = useState<RecordingStatus>('idle');
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [status, setStatus] = useState("Ready to record");
@@ -90,7 +93,7 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
   const handleStartRecording = useCallback(async () => {
     try {
       await recordingService.startRecording();
-      setIsRecording(true);
+      setRecordingStatus('recording');
       setStatus("⏺️ Recording...");
     } catch (error) {
       logger.error("Failed to start recording:", error);
@@ -98,9 +101,44 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
     }
   }, [recordingService]);
 
+  const handlePauseRecording = useCallback(async () => {
+    try {
+      await recordingService.pauseRecording();
+      setRecordingStatus('paused');
+      setStatus("⏸️ Recording paused");
+    } catch (error) {
+      logger.error("Failed to pause recording:", error);
+      setStatus(`❌ Error: ${error}`);
+    }
+  }, [recordingService]);
+
+  const handleResumeRecording = useCallback(async () => {
+    try {
+      await recordingService.resumeRecording();
+      setRecordingStatus('recording');
+      setStatus("⏺️ Recording...");
+    } catch (error) {
+      logger.error("Failed to resume recording:", error);
+      setStatus(`❌ Error: ${error}`);
+    }
+  }, [recordingService]);
+
+  const handleCancelRecording = useCallback(async () => {
+    try {
+      await recordingService.cancelRecording();
+      setRecordingStatus('idle');
+      setRecordingDuration(0);
+      setStatus("Recording cancelled");
+      setTimeout(() => setStatus("Ready to record"), 3000);
+    } catch (error) {
+      logger.error("Failed to cancel recording:", error);
+      setStatus(`❌ Error: ${error}`);
+    }
+  }, [recordingService]);
+
   const handleStopRecording = useCallback(async () => {
     try {
-      setIsRecording(false);
+      setRecordingStatus('idle');
       setIsProcessing(true);
       setStatus("🔄 Saving and transcribing audio...");
 
@@ -133,7 +171,7 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
   useEffect(() => {
     let interval: number | undefined;
 
-    if (isRecording) {
+    if (recordingStatus === 'recording' || recordingStatus === 'paused') {
       interval = window.setInterval(async () => {
         try {
           const duration = await recordingService.getRecordingDuration();
@@ -149,19 +187,22 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isRecording, recordingService]);
+  }, [recordingStatus, recordingService]);
 
   const selectedSession = findSessionById(sessions, selectedId);
 
   return {
     sessions,
     selectedId,
-    isRecording,
+    recordingStatus,
     isProcessing,
     recordingDuration,
     status,
     selectedSession,
     handleStartRecording,
+    handlePauseRecording,
+    handleResumeRecording,
+    handleCancelRecording,
     handleStopRecording,
     setSelectedId,
     loadSessions,

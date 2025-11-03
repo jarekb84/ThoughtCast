@@ -1,7 +1,7 @@
 use crate::recording::audio::{start_capture, write_wav_file};
 use crate::recording::models::Session;
 use crate::recording::session::storage::add_session;
-use crate::recording::state::SharedRecordingState;
+use crate::recording::state::{RecordingStatus, SharedRecordingState};
 use crate::recording::transcription::transcribe_with_whisper;
 use crate::recording::utils::{copy_to_clipboard, get_storage_dir};
 use chrono::Utc;
@@ -14,6 +14,71 @@ pub fn start_recording(state: SharedRecordingState) -> Result<(), String> {
     start_capture(state)
 }
 
+/// Pause the current recording session
+///
+/// Stops audio capture while preserving existing recording.
+/// Recording can be resumed to continue from this point.
+pub fn pause_recording(state: SharedRecordingState) -> Result<(), String> {
+    let mut state_guard = state.lock().unwrap();
+
+    if state_guard.status != RecordingStatus::Recording {
+        return Err("No active recording to pause.".to_string());
+    }
+
+    state_guard.status = RecordingStatus::Paused;
+    state_guard.pause_start_time = Some(Utc::now());
+
+    Ok(())
+}
+
+/// Resume a paused recording session
+///
+/// Continues audio capture from where it was paused.
+pub fn resume_recording(state: SharedRecordingState) -> Result<(), String> {
+    let mut state_guard = state.lock().unwrap();
+
+    if state_guard.status != RecordingStatus::Paused {
+        return Err("No paused recording to resume.".to_string());
+    }
+
+    // Calculate duration of this pause and add to total
+    if let Some(pause_start) = state_guard.pause_start_time {
+        let pause_end = Utc::now();
+        let pause_duration = (pause_end - pause_start).num_milliseconds();
+        state_guard.total_paused_duration_ms += pause_duration;
+    }
+
+    state_guard.status = RecordingStatus::Recording;
+    state_guard.pause_start_time = None;
+
+    Ok(())
+}
+
+/// Cancel the current recording session
+///
+/// Discards the recording without saving. No audio file or session entry is created.
+pub fn cancel_recording(state: SharedRecordingState) -> Result<(), String> {
+    let mut state_guard = state.lock().unwrap();
+
+    if !state_guard.is_active() {
+        return Err("No active recording to cancel.".to_string());
+    }
+
+    // Reset to idle state
+    state_guard.status = RecordingStatus::Idle;
+    state_guard.start_time = None;
+    state_guard.pause_start_time = None;
+    state_guard.total_paused_duration_ms = 0;
+
+    // Clear samples
+    {
+        let mut samples = state_guard.samples.lock().unwrap();
+        samples.clear();
+    }
+
+    Ok(())
+}
+
 /// Stop the current recording session and save the result
 ///
 /// Coordinates the full workflow:
@@ -22,18 +87,29 @@ pub fn start_recording(state: SharedRecordingState) -> Result<(), String> {
 /// 3. Transcribes audio (if configured)
 /// 4. Copies transcript to clipboard (if successful)
 /// 5. Creates and persists session record
+///
+/// Can be called from Recording or Paused state.
 pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
     let mut state_guard = state.lock().unwrap();
 
-    if !state_guard.is_recording {
+    if !state_guard.is_active() {
         return Err("No active recording to stop.".to_string());
     }
 
-    // Mark as not recording (this will stop the recording thread)
-    state_guard.is_recording = false;
+    // If currently paused, finalize the pause duration
+    if state_guard.status == RecordingStatus::Paused {
+        if let Some(pause_start) = state_guard.pause_start_time {
+            let pause_end = Utc::now();
+            let pause_duration = (pause_end - pause_start).num_milliseconds();
+            state_guard.total_paused_duration_ms += pause_duration;
+        }
+    }
 
-    // Calculate duration
+    // Calculate duration (excluding paused time)
     let duration = calculate_duration(&state_guard);
+
+    // Mark as idle (this will stop the recording thread)
+    state_guard.status = RecordingStatus::Idle;
 
     // Wait a bit for the recording thread to finish collecting samples
     drop(state_guard);
@@ -67,11 +143,13 @@ pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
     Ok(session)
 }
 
-/// Calculate recording duration from start time
+/// Calculate recording duration from start time, excluding paused time
 fn calculate_duration(state: &crate::recording::state::RecordingState) -> f64 {
     if let Some(start_time) = state.start_time {
         let end_time = Utc::now();
-        (end_time - start_time).num_milliseconds() as f64 / 1000.0
+        let total_elapsed_ms = (end_time - start_time).num_milliseconds();
+        let active_recording_ms = total_elapsed_ms - state.total_paused_duration_ms;
+        active_recording_ms as f64 / 1000.0
     } else {
         0.0
     }

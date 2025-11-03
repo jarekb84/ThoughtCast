@@ -222,7 +222,7 @@ describe('useRecordingWorkflow', () => {
     const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
 
     await waitFor(() => {
-      expect(result.current.isRecording).toBe(false);
+      expect(result.current.recordingStatus).toBe('idle');
       expect(result.current.isProcessing).toBe(false);
       expect(result.current.recordingDuration).toBe(0);
       expect(result.current.status).toBe('Ready to record');
@@ -260,7 +260,7 @@ describe('useRecordingWorkflow', () => {
     });
 
     expect(mockRecordingService.startRecording).toHaveBeenCalled();
-    expect(result.current.isRecording).toBe(true);
+    expect(result.current.recordingStatus).toBe('recording');
     expect(result.current.status).toBe('⏺️ Recording...');
   });
 
@@ -276,7 +276,7 @@ describe('useRecordingWorkflow', () => {
       await result.current.handleStartRecording();
     });
 
-    expect(result.current.isRecording).toBe(false);
+    expect(result.current.recordingStatus).toBe('idle');
     expect(result.current.status).toContain('❌ Error:');
   });
 
@@ -313,7 +313,7 @@ describe('useRecordingWorkflow', () => {
     });
 
     expect(mockRecordingService.stopRecording).toHaveBeenCalled();
-    expect(result.current.isRecording).toBe(false);
+    expect(result.current.recordingStatus).toBe('idle');
     expect(result.current.isProcessing).toBe(false);
     expect(result.current.status).toBe('✅ Transcript copied to clipboard!');
     expect(result.current.selectedId).toBe('new-session');
@@ -341,7 +341,7 @@ describe('useRecordingWorkflow', () => {
       await result.current.handleStopRecording();
     });
 
-    expect(result.current.isRecording).toBe(false);
+    expect(result.current.recordingStatus).toBe('idle');
     expect(result.current.isProcessing).toBe(false);
     expect(result.current.status).toContain('❌ Error:');
   });
@@ -360,7 +360,7 @@ describe('useRecordingWorkflow', () => {
       await result.current.handleStartRecording();
     });
 
-    expect(result.current.isRecording).toBe(true);
+    expect(result.current.recordingStatus).toBe('recording');
 
     // Wait for the interval to trigger and update duration
     await waitFor(() => {

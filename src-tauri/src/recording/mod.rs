@@ -13,13 +13,16 @@ mod utils;
 pub use models::{Session, SessionIndex, WhisperConfig};
 
 // State management
-pub use state::{RecordingState, SharedRecordingState};
+pub use state::{RecordingState, RecordingStatus, SharedRecordingState};
 
 // Configuration
 pub use config::load_config;
 
 // Session operations (main API surface)
-pub use session::{load_sessions, load_transcript, retranscribe_session, start_recording, stop_recording};
+pub use session::{
+    cancel_recording, load_sessions, load_transcript, pause_recording, resume_recording,
+    retranscribe_session, start_recording, stop_recording,
+};
 
 // Utility functions
 pub use utils::{copy_to_clipboard, get_storage_dir};

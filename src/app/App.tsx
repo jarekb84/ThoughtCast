@@ -7,12 +7,15 @@ function App() {
   const {
     sessions,
     selectedId,
-    isRecording,
+    recordingStatus,
     isProcessing,
     recordingDuration,
     status,
     selectedSession,
     handleStartRecording,
+    handlePauseRecording,
+    handleResumeRecording,
+    handleCancelRecording,
     handleStopRecording,
     setSelectedId,
     loadSessions
@@ -27,11 +30,14 @@ function App() {
       />
       <SessionViewer
         selectedSession={selectedSession}
-        isRecording={isRecording}
+        recordingStatus={recordingStatus}
         isProcessing={isProcessing}
         recordingDuration={recordingDuration}
         status={status}
         onStartRecording={handleStartRecording}
+        onPauseRecording={handlePauseRecording}
+        onResumeRecording={handleResumeRecording}
+        onCancelRecording={handleCancelRecording}
         onStopRecording={handleStopRecording}
         onSessionsChanged={loadSessions}
       />
