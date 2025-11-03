@@ -1,0 +1,155 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v0.1.0)'
+        required: true
+        type: string
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Windows app
+        run: npm run tauri:build
+
+      - name: Verify Windows build artifacts
+        shell: bash
+        run: |
+          if [ ! -f src-tauri/target/release/bundle/nsis/*.exe ]; then
+            echo "Error: Windows installer not found"
+            exit 1
+          fi
+          echo "Build artifacts verified:"
+          ls -lh src-tauri/target/release/bundle/nsis/*.exe
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: src-tauri/target/release/bundle/nsis/*.exe
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build macOS app
+        run: npm run tauri:build
+
+      - name: Verify macOS build artifacts
+        run: |
+          if [ ! -f src-tauri/target/release/bundle/dmg/*.dmg ]; then
+            echo "Error: macOS installer not found"
+            exit 1
+          fi
+          echo "Build artifacts verified:"
+          ls -lh src-tauri/target/release/bundle/dmg/*.dmg
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-installer
+          path: src-tauri/target/release/bundle/dmg/*.dmg
+
+  create-release:
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: windows-installer
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-installer
+          path: macos-installer
+
+      - name: Verify downloaded artifacts
+        run: |
+          echo "Windows artifacts:"
+          ls -lh windows-installer/
+          echo ""
+          echo "macOS artifacts:"
+          ls -lh macos-installer/
+          echo ""
+          if [ -z "$(ls -A windows-installer/)" ]; then
+            echo "Error: No Windows installer found"
+            exit 1
+          fi
+          if [ -z "$(ls -A macos-installer/)" ]; then
+            echo "Error: No macOS installer found"
+            exit 1
+          fi
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+          name: Release ${{ github.event.inputs.version }}
+          draft: false
+          prerelease: false
+          files: |
+            windows-installer/*
+            macos-installer/*

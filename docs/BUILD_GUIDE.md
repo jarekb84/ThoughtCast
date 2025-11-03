@@ -78,7 +78,31 @@ The first time you run `npm run tauri:dev`, it will take several minutes as Rust
 
 ## Building for Production
 
-To create a production build:
+### Option 1: GitHub Actions (Recommended for Releases)
+
+The recommended way to create production builds is using GitHub Actions, which automatically builds for both Windows and macOS.
+
+**Steps:**
+1. Go to the repository on GitHub
+2. Navigate to **Actions** → **Build and Release**
+3. Click **Run workflow**
+4. Enter a version tag (e.g., `v0.1.0`)
+5. Click **Run workflow** button
+
+The workflow will:
+- Build Windows `.exe` installer on Windows runner
+- Build macOS `.dmg` installer on macOS runner (Apple Silicon)
+- Create a GitHub release with both installers attached
+
+**Download the Release:**
+- Go to **Releases** section on GitHub
+- Download the appropriate installer for your platform:
+  - Windows: `ThoughtCast_<version>_x64-setup.exe`
+  - macOS: `ThoughtCast_<version>_aarch64.dmg`
+
+### Option 2: Local Build
+
+To create a local production build:
 
 ```bash
 npm run tauri:build
@@ -86,11 +110,12 @@ npm run tauri:build
 
 The built application will be in `src-tauri/target/release/bundle/`
 
-### Build Outputs by Platform
-
+**Build Outputs by Platform:**
 - **Windows**: `.exe` installer in `bundle/nsis/`
 - **macOS**: `.app` bundle and `.dmg` in `bundle/dmg/` and `bundle/macos/`
 - **Linux**: `.deb`, `.AppImage`, etc. in respective bundle folders
+
+**Note:** macOS builds require a Mac (cannot cross-compile from Windows). Use GitHub Actions for macOS builds if you're developing on Windows.
 
 ## Current Status
 
