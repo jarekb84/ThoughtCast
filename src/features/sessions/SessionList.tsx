@@ -1,4 +1,4 @@
-import { Session } from "./types";
+import { Session } from "../../api";
 import SessionListItem from "./SessionListItem";
 import "./SessionList.css";
 

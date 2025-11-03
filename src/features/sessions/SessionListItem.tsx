@@ -1,4 +1,4 @@
-import { Session } from "./types";
+import { Session } from "../../api";
 import { formatShortTimestamp } from "../../shared/formatters/date-time";
 import { formatDuration } from "../../shared/formatters/duration";
 import "./SessionListItem.css";

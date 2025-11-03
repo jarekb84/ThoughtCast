@@ -1,11 +1,10 @@
-import { useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { Session } from "./types";
+import { Session } from "../../api";
 import { formatTimestamp } from "../../shared/formatters/date-time";
 import { formatDuration } from "../../shared/formatters/duration";
 import { formatFilePath } from "../../shared/formatters/file-path";
 import RecordingControls from "../recording/RecordingControls";
 import { Button, Card, InfoRow } from "../../shared/components";
+import { useTranscriptViewer } from "./useTranscriptViewer";
 import "./SessionViewer.css";
 
 interface SessionViewerProps {
@@ -29,95 +28,16 @@ export default function SessionViewer({
   onStopRecording,
   onSessionsChanged,
 }: SessionViewerProps) {
-  const [copyButtonText, setCopyButtonText] = useState("Copy to Clipboard");
-  const [isCopying, setIsCopying] = useState(false);
-  const [transcript, setTranscript] = useState<string | null>(null);
-  const [transcriptError, setTranscriptError] = useState<string | null>(null);
-  const [isLoadingTranscript, setIsLoadingTranscript] = useState(false);
-  const [isRetranscribing, setIsRetranscribing] = useState(false);
-
-  // Load transcript when selected session changes
-  useEffect(() => {
-    const loadTranscript = async () => {
-      if (!selectedSession) {
-        setTranscript(null);
-        setTranscriptError(null);
-        return;
-      }
-
-      // Skip if no transcript path
-      if (!selectedSession.transcript_path) {
-        setTranscript(null);
-        setTranscriptError("No transcript available");
-        return;
-      }
-
-      setIsLoadingTranscript(true);
-      setTranscriptError(null);
-
-      try {
-        const text = await invoke<string>("load_transcript", {
-          sessionId: selectedSession.id,
-        });
-        setTranscript(text);
-      } catch (error) {
-        console.error("Failed to load transcript:", error);
-        setTranscriptError(
-          error instanceof Error ? error.message : String(error)
-        );
-        setTranscript(null);
-      } finally {
-        setIsLoadingTranscript(false);
-      }
-    };
-
-    loadTranscript();
-  }, [selectedSession?.id]);
-
-  const handleCopyToClipboard = async () => {
-    if (!selectedSession) return;
-
-    setIsCopying(true);
-    try {
-      await invoke("copy_transcript_to_clipboard", {
-        sessionId: selectedSession.id,
-      });
-      setCopyButtonText("Copied!");
-      setTimeout(() => setCopyButtonText("Copy to Clipboard"), 2000);
-    } catch (error) {
-      console.error("Failed to copy to clipboard:", error);
-      alert(`Failed to copy: ${error}`);
-    } finally {
-      setIsCopying(false);
-    }
-  };
-
-  const handleRetranscribe = async () => {
-    if (!selectedSession) return;
-
-    setIsRetranscribing(true);
-    setIsLoadingTranscript(true);
-    setTranscriptError(null);
-
-    try {
-      const newTranscript = await invoke<string>("retranscribe_session", {
-        sessionId: selectedSession.id,
-      });
-      setTranscript(newTranscript);
-
-      // Refresh the session list to get updated preview and transcript_path
-      await onSessionsChanged();
-    } catch (error) {
-      console.error("Failed to retranscribe:", error);
-      setTranscriptError(
-        `Retranscription failed: ${error instanceof Error ? error.message : String(error)}`
-      );
-      setTranscript(null);
-    } finally {
-      setIsRetranscribing(false);
-      setIsLoadingTranscript(false);
-    }
-  };
+  const {
+    transcript,
+    transcriptError,
+    isLoadingTranscript,
+    isRetranscribing,
+    isCopying,
+    copyButtonText,
+    handleCopyToClipboard,
+    handleRetranscribe
+  } = useTranscriptViewer(selectedSession, onSessionsChanged);
 
   return (
     <div className="session-viewer">
