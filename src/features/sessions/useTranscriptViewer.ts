@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Session, useApi } from '../../api';
+import { logger } from '../../shared/utils/logger';
 
 /**
  * Formats error as user-friendly message
@@ -72,7 +73,7 @@ export function useTranscriptViewer(
         const text = await transcriptService.loadTranscript(selectedSession.id);
         setTranscript(text);
       } catch (error) {
-        console.error("Failed to load transcript:", error);
+        logger.error("Failed to load transcript:", error);
         setTranscriptError(formatErrorMessage(error));
         setTranscript(null);
       } finally {
@@ -92,7 +93,7 @@ export function useTranscriptViewer(
       setCopyButtonText("Copied!");
       setTimeout(() => setCopyButtonText("Copy to Clipboard"), 2000);
     } catch (error) {
-      console.error("Failed to copy to clipboard:", error);
+      logger.error("Failed to copy to clipboard:", error);
       alert(`Failed to copy: ${formatErrorMessage(error)}`);
     } finally {
       setIsCopying(false);
@@ -113,7 +114,7 @@ export function useTranscriptViewer(
       // Refresh the session list to get updated preview and transcript_path
       await onSessionsChanged();
     } catch (error) {
-      console.error("Failed to retranscribe:", error);
+      logger.error("Failed to retranscribe:", error);
       setTranscriptError(`Retranscription failed: ${formatErrorMessage(error)}`);
       setTranscript(null);
     } finally {

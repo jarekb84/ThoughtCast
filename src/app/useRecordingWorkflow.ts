@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Session, useApi } from '../api';
+import { logger } from '../shared/utils/logger';
 
 /**
  * Determines appropriate status message based on recording result
@@ -81,7 +82,7 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
         setSelectedId(newSelectedId);
       }
     } catch (error) {
-      console.error("Failed to load sessions:", error);
+      logger.error("Failed to load sessions:", error);
       setStatus(`Error: ${error}`);
     }
   }, [sessionService, selectedId]);
@@ -92,7 +93,7 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
       setIsRecording(true);
       setStatus("⏺️ Recording...");
     } catch (error) {
-      console.error("Failed to start recording:", error);
+      logger.error("Failed to start recording:", error);
       setStatus(`❌ Error: ${error}`);
     }
   }, [recordingService]);
@@ -116,7 +117,7 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
       // Reset status after delay
       setTimeout(() => setStatus("Ready to record"), 5000);
     } catch (error) {
-      console.error("Failed to stop recording:", error);
+      logger.error("Failed to stop recording:", error);
       setStatus(`❌ Error: ${error}`);
     } finally {
       setIsProcessing(false);
@@ -138,7 +139,7 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
           const duration = await recordingService.getRecordingDuration();
           setRecordingDuration(duration);
         } catch (error) {
-          console.error("Failed to get recording duration:", error);
+          logger.error("Failed to get recording duration:", error);
         }
       }, 100);
     } else {
