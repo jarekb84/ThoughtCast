@@ -1,6 +1,7 @@
 import { Session } from "../../api";
 import { formatShortTimestamp } from "../../shared/formatters/date-time";
 import { formatDuration } from "../../shared/formatters/duration";
+import { truncateText } from "../../shared/formatters/text";
 import "./SessionListItem.css";
 
 interface SessionListItemProps {
@@ -35,8 +36,7 @@ export default function SessionListItem({
         </span>
       </div>
       <div className="session-list-item-preview">
-        {session.preview.substring(0, 50)}
-        {session.preview.length > 50 && "..."}
+        {truncateText(session.preview, 50)}
       </div>
     </div>
   );
