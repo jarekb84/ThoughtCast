@@ -19,7 +19,9 @@
     "rust:test": "cd src-tauri && cargo test",
     "prepare": "husky",
     "knip": "knip --fix-type files,exports,types",
-    "integration-precheck": "npm run type-check && npm run test && npm run rust:check && npm run rust:test"
+    "precheck:js": "npm run type-check && npm run test",
+    "precheck:rust": "npm run rust:check && npm run rust:test",
+    "integration-precheck": "npm run precheck:js && npm run precheck:rust"
   },
   "repository": {
     "type": "git",

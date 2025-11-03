@@ -6,7 +6,10 @@
       "Bash(npm run test)",
       "Bash(npm run test:*)",
       "Bash(npm test:*)",
-      "Bash(npm run integration-precheck:*)"
+      "Bash(npm run integration-precheck:*)",
+      "Bash(cargo check:*)",
+      "Bash(cargo test:*)",
+      "Bash(npm run test:*)"
     ],
     "deny": [],
     "ask": []

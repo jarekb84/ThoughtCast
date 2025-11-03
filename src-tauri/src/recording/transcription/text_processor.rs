@@ -57,4 +57,40 @@ mod tests {
         let cleaned = clean_transcript(raw);
         assert_eq!(cleaned, "");
     }
+
+    #[test]
+    fn test_clean_transcript_preserves_brackets_in_text() {
+        let raw = "The formula is [a + b] equals c\nAnother line with [brackets]";
+        let cleaned = clean_transcript(raw);
+        assert_eq!(cleaned, "The formula is [a + b] equals c\nAnother line with [brackets]");
+    }
+
+    #[test]
+    fn test_clean_transcript_mixed_timestamps_and_text() {
+        let raw = "[00:00:00.000 --> 00:00:02.000]\nHello world\nSome text\n[00:00:02.000 --> 00:00:04.000]\nMore text";
+        let cleaned = clean_transcript(raw);
+        assert_eq!(cleaned, "Hello world\nSome text\nMore text");
+    }
+
+    #[test]
+    fn test_clean_transcript_only_timestamps() {
+        let raw = "[00:00:00.000 --> 00:00:02.000]\n[00:00:02.000 --> 00:00:04.000]";
+        let cleaned = clean_transcript(raw);
+        assert_eq!(cleaned, "");
+    }
+
+    #[test]
+    fn test_clean_transcript_whitespace_handling() {
+        let raw = "  \n  Hello world  \n  [00:00:00.000 --> 00:00:02.000]  \n  Test  \n  ";
+        let cleaned = clean_transcript(raw);
+        // Preserves internal lines but trims overall
+        assert_eq!(cleaned, "Hello world  \n  Test");
+    }
+
+    #[test]
+    fn test_clean_transcript_multiline_text() {
+        let raw = "[00:00:00.000 --> 00:00:02.000]\nLine 1\nLine 2\nLine 3\n[00:00:02.000 --> 00:00:04.000]\nLine 4";
+        let cleaned = clean_transcript(raw);
+        assert_eq!(cleaned, "Line 1\nLine 2\nLine 3\nLine 4");
+    }
 }
