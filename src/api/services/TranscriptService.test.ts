@@ -8,12 +8,12 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 describe('TauriTranscriptService', () => {
   let service: TauriTranscriptService;
-  let mockInvoke: any;
+  let mockInvoke: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     service = new TauriTranscriptService();
     const { invoke } = await import('@tauri-apps/api/core');
-    mockInvoke = invoke as any;
+    mockInvoke = invoke as ReturnType<typeof vi.fn>;
     vi.clearAllMocks();
   });
 

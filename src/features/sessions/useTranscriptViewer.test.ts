@@ -133,14 +133,14 @@ describe('useTranscriptViewer', () => {
     React.createElement(
       ApiProvider,
       {
+        children,
         services: {
           transcriptService: mockTranscriptService as any,
           clipboardService: mockClipboardService as any,
           sessionService: mockSessionService as any,
           recordingService: mockRecordingService as any,
         },
-      },
-      children
+      }
     );
 
   beforeEach(() => {
@@ -195,7 +195,7 @@ describe('useTranscriptViewer', () => {
     });
   });
 
-  it.skip('should handle transcript loading error', async () => {
+  it('should handle transcript loading error', async () => {
     mockTranscriptService.loadTranscript.mockRejectedValue(new Error('Load failed'));
 
     const { result } = renderHook(
@@ -225,7 +225,7 @@ describe('useTranscriptViewer', () => {
       expect(result.current.transcript).toBe('Transcript text');
     });
 
-    rerender({ session: null });
+    rerender({ session: null as any });
 
     await waitFor(() => {
       expect(result.current.transcript).toBeNull();
@@ -263,9 +263,7 @@ describe('useTranscriptViewer', () => {
     });
   });
 
-  it.skip('should copy transcript to clipboard successfully', async () => {
-    vi.useFakeTimers();
-
+  it('should copy transcript to clipboard successfully', async () => {
     mockTranscriptService.loadTranscript.mockResolvedValue('Transcript text');
     mockClipboardService.copyTranscriptToClipboard.mockResolvedValue(undefined);
 
@@ -277,6 +275,9 @@ describe('useTranscriptViewer', () => {
     await waitFor(() => {
       expect(result.current.transcript).toBe('Transcript text');
     });
+
+    // Enable fake timers after initial render
+    vi.useFakeTimers();
 
     await act(async () => {
       await result.current.handleCopyToClipboard();
@@ -294,7 +295,7 @@ describe('useTranscriptViewer', () => {
     vi.useRealTimers();
   });
 
-  it.skip('should handle clipboard copy error', async () => {
+  it('should handle clipboard copy error', async () => {
     const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
     mockTranscriptService.loadTranscript.mockResolvedValue('Transcript text');
     mockClipboardService.copyTranscriptToClipboard.mockRejectedValue(
@@ -308,7 +309,7 @@ describe('useTranscriptViewer', () => {
 
     await waitFor(() => {
       expect(result.current.transcript).toBe('Transcript text');
-    });
+    }, { timeout: 10000 });
 
     await act(async () => {
       await result.current.handleCopyToClipboard();
@@ -333,7 +334,7 @@ describe('useTranscriptViewer', () => {
     expect(mockClipboardService.copyTranscriptToClipboard).not.toHaveBeenCalled();
   });
 
-  it.skip('should retranscribe successfully', async () => {
+  it('should retranscribe successfully', async () => {
     mockTranscriptService.loadTranscript.mockResolvedValue('Original transcript');
     mockTranscriptService.retranscribe.mockResolvedValue('New transcript');
 
@@ -344,7 +345,7 @@ describe('useTranscriptViewer', () => {
 
     await waitFor(() => {
       expect(result.current.transcript).toBe('Original transcript');
-    });
+    }, { timeout: 10000 });
 
     await act(async () => {
       await result.current.handleRetranscribe();
@@ -357,7 +358,7 @@ describe('useTranscriptViewer', () => {
     expect(result.current.isLoadingTranscript).toBe(false);
   });
 
-  it.skip('should handle retranscribe error', async () => {
+  it('should handle retranscribe error', async () => {
     mockTranscriptService.loadTranscript.mockResolvedValue('Original transcript');
     mockTranscriptService.retranscribe.mockRejectedValue(new Error('Retranscribe failed'));
 
@@ -368,7 +369,7 @@ describe('useTranscriptViewer', () => {
 
     await waitFor(() => {
       expect(result.current.transcript).toBe('Original transcript');
-    });
+    }, { timeout: 10000 });
 
     await act(async () => {
       await result.current.handleRetranscribe();
@@ -393,7 +394,7 @@ describe('useTranscriptViewer', () => {
     expect(mockTranscriptService.retranscribe).not.toHaveBeenCalled();
   });
 
-  it.skip('should set loading states during retranscribe', async () => {
+  it('should set loading states during retranscribe', async () => {
     mockTranscriptService.loadTranscript.mockResolvedValue('Original transcript');
     mockTranscriptService.retranscribe.mockImplementation(
       () => new Promise((resolve) => setTimeout(() => resolve('New transcript'), 100))
@@ -406,7 +407,7 @@ describe('useTranscriptViewer', () => {
 
     await waitFor(() => {
       expect(result.current.transcript).toBe('Original transcript');
-    });
+    }, { timeout: 10000 });
 
     act(() => {
       result.current.handleRetranscribe();
@@ -415,18 +416,18 @@ describe('useTranscriptViewer', () => {
     await waitFor(() => {
       expect(result.current.isRetranscribing).toBe(true);
       expect(result.current.isLoadingTranscript).toBe(true);
-    });
+    }, { timeout: 10000 });
 
     await waitFor(() => {
       expect(result.current.isRetranscribing).toBe(false);
       expect(result.current.isLoadingTranscript).toBe(false);
-    });
+    }, { timeout: 10000 });
   });
 
-  it.skip('should track copying state', async () => {
+  it('should track copying state', async () => {
     mockTranscriptService.loadTranscript.mockResolvedValue('Transcript text');
     mockClipboardService.copyTranscriptToClipboard.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve(), 100))
+      () => new Promise<void>((resolve) => setTimeout(() => resolve(), 100))
     );
 
     const { result } = renderHook(
@@ -436,7 +437,7 @@ describe('useTranscriptViewer', () => {
 
     await waitFor(() => {
       expect(result.current.transcript).toBe('Transcript text');
-    });
+    }, { timeout: 10000 });
 
     expect(result.current.isCopying).toBe(false);
 
@@ -446,10 +447,10 @@ describe('useTranscriptViewer', () => {
 
     await waitFor(() => {
       expect(result.current.isCopying).toBe(true);
-    });
+    }, { timeout: 10000 });
 
     await waitFor(() => {
       expect(result.current.isCopying).toBe(false);
-    });
+    }, { timeout: 10000 });
   });
 });

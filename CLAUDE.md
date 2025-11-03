@@ -24,12 +24,23 @@ npm run tauri:build      # Build production executable
 npm run tauri            # Access Tauri CLI directly
 ```
 
-### Type Checking
+### Type Checking & Testing
 ```bash
 tsc                      # Run TypeScript compiler (no output, just validation)
+npm test                 # Run unit tests with Vitest
+npm run integration-precheck  # Run full pre-commit checks (type-check, tests, Rust)
 ```
 
-**Note**: No test framework is currently configured. Tests should be added before implementing new features.
+### Debug Logging
+Application uses a centralized logger (`src/shared/utils/logger.ts`) instead of direct console calls. To enable debug output:
+
+```bash
+# Create .env.local (copy from .env.local.example)
+echo "VITE_DEBUG_LOGS=true" > .env.local
+npm run dev  # Logs will now appear in console
+```
+
+**Important**: Always use `logger.error()`, `logger.warn()`, etc. instead of direct `console.*` calls in application code.
 
 ## Architecture
 
@@ -45,6 +56,55 @@ tsc                      # Run TypeScript compiler (no output, just validation)
 **Feature-Based Organization**: Code is organized by domain/feature, NOT by technical layers (no `components/`, `hooks/`, `utils/` directories at feature level).
 
 **React Separation Doctrine**: ZERO business logic in `.tsx` files. Components should be ultra-thin presentation layers. All calculations, transformations, and business rules belong in hooks or pure functions.
+
+### Tauri API Integration
+
+**CRITICAL**: All Tauri invoke calls MUST go through `wrapTauriInvoke` from `src/api/services/tauriInvokeWrapper.ts`.
+
+**Purpose**: The wrapper provides consistent error handling by catching all Tauri API errors and wrapping them in `ApiError` with:
+- Human-readable error messages
+- Structured error codes for client-side handling
+- Original error preservation for debugging
+
+**Implementation Pattern**:
+```typescript
+// CORRECT - use wrapper
+import { wrapTauriInvoke } from './tauriInvokeWrapper';
+
+async getSessions(): Promise<SessionIndex> {
+  return wrapTauriInvoke<SessionIndex>(
+    'get_sessions',
+    undefined,
+    'Failed to load sessions',
+    'SESSION_LOAD_FAILED'
+  );
+}
+
+// INCORRECT - direct Tauri API call
+import { invoke } from '@tauri-apps/api/core';
+async getSessions() {
+  return await invoke<SessionIndex>('get_sessions');  // ❌ No error wrapping
+}
+```
+
+**Testing Strategy**:
+- **Service tests** (`*Service.test.ts`): Mock `@tauri-apps/api/core` directly, keep wrapper real to test error handling
+- **Hook/feature tests**: Provide mock service implementations via `ApiProvider`, use Tauri API mock as safety net
+- **Never mock the wrapper** in service tests - its error handling logic must be tested
+
+**Example Service Test**:
+```typescript
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn()
+}));
+
+it('should wrap errors in ApiError', async () => {
+  mockInvoke.mockRejectedValue(new Error('Backend failed'));
+
+  await expect(service.getSessions()).rejects.toThrow(ApiError);
+  await expect(service.getSessions()).rejects.toThrow('Failed to load sessions');
+});
+```
 
 ### Backend Architecture (Rust)
 

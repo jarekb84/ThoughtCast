@@ -2,19 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TauriSessionService, MockSessionService } from './SessionService';
 import { ApiError } from '..';
 
-// Mock the Tauri invoke function
+// Mock the Tauri API directly - wrapper will handle error wrapping
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
 }));
 
 describe('TauriSessionService', () => {
   let service: TauriSessionService;
-  let mockInvoke: any;
+  let mockInvoke: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     service = new TauriSessionService();
     const { invoke } = await import('@tauri-apps/api/core');
-    mockInvoke = invoke as any;
+    mockInvoke = invoke as ReturnType<typeof vi.fn>;
     vi.clearAllMocks();
   });
 
