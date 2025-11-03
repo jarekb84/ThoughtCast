@@ -11,7 +11,44 @@
   font-weight: var(--font-weight-semibold);
   color: var(--color-danger);
   font-family: var(--font-family-mono);
-  min-width: 60px;
+  min-width: 100px;
   text-align: right;
   line-height: var(--line-height-normal);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-md);
+  transition: color var(--transition-base), background-color var(--transition-base);
+}
+
+.recording-timer.paused {
+  color: var(--color-neutral);
+  background-color: var(--color-neutral-bg);
+}
+
+.pause-indicator {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  font-family: var(--font-family-base);
+  margin-left: var(--space-sm);
+  letter-spacing: 0.5px;
+  opacity: 0.9;
+}
+
+.recording-buttons {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .recording-buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .recording-buttons button {
+    width: 100%;
+    min-width: 200px;
+  }
 }

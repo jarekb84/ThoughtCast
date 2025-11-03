@@ -1,4 +1,4 @@
-import { Session } from "../../api";
+import { Session, RecordingStatus } from "../../api";
 import { formatTimestamp } from "../../shared/formatters/date-time";
 import { formatDuration } from "../../shared/formatters/duration";
 import { formatFilePath } from "../../shared/formatters/file-path";
@@ -9,22 +9,28 @@ import "./SessionViewer.css";
 
 interface SessionViewerProps {
   selectedSession: Session | null;
-  isRecording: boolean;
+  recordingStatus: RecordingStatus;
   isProcessing: boolean;
   recordingDuration: number;
   status: string;
   onStartRecording: () => void;
+  onPauseRecording: () => void;
+  onResumeRecording: () => void;
+  onCancelRecording: () => void;
   onStopRecording: () => void;
   onSessionsChanged: () => Promise<void>;
 }
 
 export default function SessionViewer({
   selectedSession,
-  isRecording,
+  recordingStatus,
   isProcessing,
   recordingDuration,
   status,
   onStartRecording,
+  onPauseRecording,
+  onResumeRecording,
+  onCancelRecording,
   onStopRecording,
   onSessionsChanged,
 }: SessionViewerProps) {
@@ -44,10 +50,13 @@ export default function SessionViewer({
       <div className="session-viewer-header">
         <h1>ThoughtCast</h1>
         <RecordingControls
-          isRecording={isRecording}
+          recordingStatus={recordingStatus}
           isProcessing={isProcessing}
           recordingDuration={recordingDuration}
           onStartRecording={onStartRecording}
+          onPauseRecording={onPauseRecording}
+          onResumeRecording={onResumeRecording}
+          onCancelRecording={onCancelRecording}
           onStopRecording={onStopRecording}
         />
       </div>

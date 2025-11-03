@@ -1,6 +1,6 @@
 import "./Button.css";
 
-export type ButtonVariant = "primary" | "secondary" | "success" | "danger" | "warning";
+export type ButtonVariant = "primary" | "secondary" | "success" | "danger" | "warning" | "neutral";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;

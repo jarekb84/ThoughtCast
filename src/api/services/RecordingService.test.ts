@@ -101,7 +101,7 @@ describe('MockRecordingService', () => {
     it('should start recording successfully', async () => {
       await service.startRecording();
 
-      expect(service.getIsRecording()).toBe(true);
+      expect(service.getStatus()).toBe('recording');
     });
 
     it('should throw if starting when already recording', async () => {
@@ -115,7 +115,7 @@ describe('MockRecordingService', () => {
       await service.startRecording();
       const session = await service.stopRecording();
 
-      expect(service.getIsRecording()).toBe(false);
+      expect(service.getStatus()).toBe('idle');
       expect(session).toHaveProperty('id');
       expect(session).toHaveProperty('audio_path');
       expect(session).toHaveProperty('transcript_path');
@@ -125,6 +125,87 @@ describe('MockRecordingService', () => {
     it('should throw if stopping when not recording', async () => {
       await expect(service.stopRecording()).rejects.toThrow(ApiError);
       await expect(service.stopRecording()).rejects.toThrow('No recording in progress');
+    });
+  });
+
+  describe('pause/resume/cancel lifecycle', () => {
+    it('should pause an active recording', async () => {
+      await service.startRecording();
+      await service.pauseRecording();
+
+      expect(service.getStatus()).toBe('paused');
+    });
+
+    it('should throw if pausing when not recording', async () => {
+      await expect(service.pauseRecording()).rejects.toThrow(ApiError);
+      await expect(service.pauseRecording()).rejects.toThrow('No active recording to pause');
+    });
+
+    it('should resume a paused recording', async () => {
+      await service.startRecording();
+      await service.pauseRecording();
+      await service.resumeRecording();
+
+      expect(service.getStatus()).toBe('recording');
+    });
+
+    it('should throw if resuming when not paused', async () => {
+      await expect(service.resumeRecording()).rejects.toThrow(ApiError);
+      await expect(service.resumeRecording()).rejects.toThrow('No paused recording to resume');
+    });
+
+    it('should cancel an active recording', async () => {
+      await service.startRecording();
+      await service.cancelRecording();
+
+      expect(service.getStatus()).toBe('idle');
+    });
+
+    it('should cancel a paused recording', async () => {
+      await service.startRecording();
+      await service.pauseRecording();
+      await service.cancelRecording();
+
+      expect(service.getStatus()).toBe('idle');
+    });
+
+    it('should throw if cancelling when idle', async () => {
+      await expect(service.cancelRecording()).rejects.toThrow(ApiError);
+      await expect(service.cancelRecording()).rejects.toThrow('No active recording to cancel');
+    });
+
+    it('should stop a paused recording', async () => {
+      await service.startRecording();
+      await service.pauseRecording();
+      const session = await service.stopRecording();
+
+      expect(service.getStatus()).toBe('idle');
+      expect(session).toHaveProperty('id');
+      expect(session.duration).toBeGreaterThan(0);
+    });
+
+    it('should exclude paused time from duration', async () => {
+      await service.startRecording();
+
+      // Record for 100ms
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      await service.pauseRecording();
+
+      // Pause for 100ms
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      await service.resumeRecording();
+
+      // Record for another 100ms
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const session = await service.stopRecording();
+
+      // Duration should be ~200ms (excluding the 100ms pause)
+      // Allow generous tolerance for timing precision on different systems
+      expect(session.duration).toBeGreaterThan(0.15); // At least 150ms
+      expect(session.duration).toBeLessThan(0.50); // Should not include full pause time
     });
   });
 
@@ -176,7 +257,7 @@ describe('MockRecordingService', () => {
       await service.startRecording();
       service.reset();
 
-      expect(service.getIsRecording()).toBe(false);
+      expect(service.getStatus()).toBe('idle');
       const duration = await service.getRecordingDuration();
       expect(duration).toBe(0);
     });

@@ -107,14 +107,37 @@
 
 /* Warning variant - orange for processing states */
 .btn-warning {
-  background-color: #ff9800;
+  background-color: var(--color-warning);
   color: white;
-  border-color: #ff9800;
+  border-color: var(--color-warning);
 }
 
 .btn-warning:hover:not(:disabled) {
-  background-color: #ff9800;
-  border-color: #ff9800;
+  background-color: var(--color-warning-hover);
+  border-color: var(--color-warning-hover);
+}
+
+.btn-warning:active:not(:disabled) {
+  background-color: var(--color-warning-active);
+  border-color: var(--color-warning-active);
+}
+
+/* Neutral variant - subtle amber for pause-like actions */
+.btn-neutral {
+  background-color: var(--color-neutral-bg);
+  color: var(--color-neutral);
+  border-color: var(--color-neutral-border);
+}
+
+.btn-neutral:hover:not(:disabled) {
+  background-color: var(--color-neutral-bg-hover);
+  border-color: var(--color-neutral-border-hover);
+  color: var(--color-neutral-hover);
+}
+
+.btn-neutral:active:not(:disabled) {
+  background-color: var(--color-neutral-bg-active);
+  border-color: var(--color-neutral);
 }
 
 /* Disabled state - consistent across all variants */

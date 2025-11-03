@@ -1,6 +1,6 @@
 mod recording;
 
-use recording::{RecordingState, Session, SessionIndex, SharedRecordingState, WhisperConfig};
+use recording::{RecordingState, RecordingStatus, Session, SessionIndex, SharedRecordingState, WhisperConfig};
 use std::sync::{Arc, Mutex};
 use tauri::State;
 
@@ -12,6 +12,24 @@ struct AppState {
 fn start_recording(state: State<AppState>) -> Result<(), String> {
     let recording_state = Arc::clone(&state.inner().recording);
     recording::start_recording(recording_state)
+}
+
+#[tauri::command]
+fn pause_recording(state: State<AppState>) -> Result<(), String> {
+    let recording_state = Arc::clone(&state.inner().recording);
+    recording::pause_recording(recording_state)
+}
+
+#[tauri::command]
+fn resume_recording(state: State<AppState>) -> Result<(), String> {
+    let recording_state = Arc::clone(&state.inner().recording);
+    recording::resume_recording(recording_state)
+}
+
+#[tauri::command]
+fn cancel_recording(state: State<AppState>) -> Result<(), String> {
+    let recording_state = Arc::clone(&state.inner().recording);
+    recording::cancel_recording(recording_state)
 }
 
 #[tauri::command]
@@ -29,17 +47,34 @@ fn get_sessions() -> Result<SessionIndex, String> {
 fn get_recording_duration(state: State<AppState>) -> Result<f64, String> {
     let recording_state = state.inner().recording.lock().unwrap();
 
-    if !recording_state.is_recording {
+    if !recording_state.is_active() {
         return Ok(0.0);
     }
 
     if let Some(start_time) = recording_state.start_time {
         let now = chrono::Utc::now();
-        let duration = (now - start_time).num_milliseconds() as f64 / 1000.0;
-        Ok(duration)
+        let total_elapsed_ms = (now - start_time).num_milliseconds();
+
+        // Calculate total paused duration including current pause if active
+        let mut total_paused_ms = recording_state.total_paused_duration_ms;
+        if recording_state.status == RecordingStatus::Paused {
+            if let Some(pause_start) = recording_state.pause_start_time {
+                let current_pause_duration = (now - pause_start).num_milliseconds();
+                total_paused_ms += current_pause_duration;
+            }
+        }
+
+        let active_duration_ms = total_elapsed_ms - total_paused_ms;
+        Ok(active_duration_ms as f64 / 1000.0)
     } else {
         Ok(0.0)
     }
+}
+
+#[tauri::command]
+fn get_recording_status(state: State<AppState>) -> Result<RecordingStatus, String> {
+    let recording_state = state.inner().recording.lock().unwrap();
+    Ok(recording_state.status)
 }
 
 #[tauri::command]
@@ -94,9 +129,13 @@ pub fn run() {
     })
     .invoke_handler(tauri::generate_handler![
         start_recording,
+        pause_recording,
+        resume_recording,
+        cancel_recording,
         stop_recording,
         get_sessions,
         get_recording_duration,
+        get_recording_status,
         load_config,
         load_transcript,
         copy_transcript_to_clipboard,

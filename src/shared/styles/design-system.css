@@ -44,6 +44,16 @@
   /* Warning colors - Oranges */
   --color-warning: #ff9800;
   --color-warning-hover: #f57c00;
+  --color-warning-active: #ef6c00;
+
+  /* Neutral colors - Amber for pause-like states */
+  --color-neutral: #e67e22;
+  --color-neutral-bg: #fef3e7;
+  --color-neutral-bg-hover: #fde9d0;
+  --color-neutral-bg-active: #fcddb8;
+  --color-neutral-border: #f9cb9c;
+  --color-neutral-border-hover: #f39c12;
+  --color-neutral-hover: #d35400;
 
   /* Neutral grays */
   --color-bg-primary: #ffffff;
