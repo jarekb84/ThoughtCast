@@ -20,9 +20,29 @@ npm run preview          # Preview production build
 ### Tauri Desktop App
 ```bash
 npm run tauri:dev        # Run app in dev mode (hot reload)
-npm run tauri:build      # Build production executable
+npm run tauri:build      # Build production executable (local machine only)
 npm run tauri            # Access Tauri CLI directly
 ```
+
+### Release Builds (GitHub Actions)
+Cross-platform releases are built via GitHub Actions workflow:
+
+**Location**: `.github/workflows/release-cross-platform.yml`
+
+**Trigger**: Manual workflow dispatch only (no automatic builds on push)
+
+**How to Create a Release**:
+1. Go to GitHub → Actions → Build and Release
+2. Click "Run workflow"
+3. Enter version tag (e.g., `v0.1.0`)
+4. Workflow builds Windows `.exe` and macOS `.dmg` (Apple Silicon)
+5. Creates GitHub release with both installers attached
+
+**Output Artifacts**:
+- Windows: `ThoughtCast_<version>_x64-setup.exe` (NSIS installer)
+- macOS: `ThoughtCast_<version>_aarch64.dmg` (Apple Silicon/ARM64)
+
+**Note**: macOS builds cannot be cross-compiled from Windows - use GitHub Actions for macOS releases.
 
 ### Type Checking & Testing
 ```bash
