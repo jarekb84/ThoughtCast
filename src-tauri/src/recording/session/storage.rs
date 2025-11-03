@@ -84,3 +84,141 @@ where
 
     save_sessions(&index)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn create_test_session(id: &str, duration: f64) -> Session {
+        Session {
+            id: id.to_string(),
+            timestamp: "2024-11-02T15:30:00Z".to_string(),
+            audio_path: format!("audio/{}.wav", id),
+            duration,
+            preview: format!("Preview for {}", id),
+            transcript_path: format!("text/{}.txt", id),
+            clipboard_copied: false,
+        }
+    }
+
+    #[test]
+    fn test_session_index_serialization() {
+        let sessions = vec![
+            create_test_session("session1", 30.0),
+            create_test_session("session2", 45.0),
+        ];
+
+        let index = SessionIndex {
+            sessions: sessions.clone(),
+        };
+
+        let json = serde_json::to_string_pretty(&index).unwrap();
+        let deserialized: SessionIndex = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.sessions.len(), 2);
+        assert_eq!(deserialized.sessions[0].id, "session1");
+        assert_eq!(deserialized.sessions[1].id, "session2");
+    }
+
+    #[test]
+    fn test_empty_session_index() {
+        let index = SessionIndex {
+            sessions: Vec::new(),
+        };
+
+        let json = serde_json::to_string_pretty(&index).unwrap();
+        let deserialized: SessionIndex = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.sessions.len(), 0);
+    }
+
+    #[test]
+    fn test_session_ordering_insert_at_beginning() {
+        let mut sessions = vec![
+            create_test_session("old-session", 30.0),
+        ];
+
+        let new_session = create_test_session("new-session", 45.0);
+        sessions.insert(0, new_session);
+
+        assert_eq!(sessions[0].id, "new-session");
+        assert_eq!(sessions[1].id, "old-session");
+    }
+
+    #[test]
+    fn test_update_session_finder() {
+        let mut sessions = vec![
+            create_test_session("session1", 30.0),
+            create_test_session("session2", 45.0),
+            create_test_session("session3", 60.0),
+        ];
+
+        let session = sessions
+            .iter_mut()
+            .find(|s| s.id == "session2")
+            .unwrap();
+
+        session.clipboard_copied = true;
+        session.preview = "Updated preview".to_string();
+
+        assert_eq!(sessions[1].clipboard_copied, true);
+        assert_eq!(sessions[1].preview, "Updated preview");
+    }
+
+    #[test]
+    fn test_session_not_found() {
+        let sessions = vec![
+            create_test_session("session1", 30.0),
+        ];
+
+        let result = sessions.iter().find(|s| s.id == "nonexistent");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_session_index_round_trip() {
+        let original = SessionIndex {
+            sessions: vec![
+                create_test_session("test1", 10.5),
+                create_test_session("test2", 20.3),
+            ],
+        };
+
+        // Serialize
+        let json = serde_json::to_string(&original).unwrap();
+
+        // Deserialize
+        let deserialized: SessionIndex = serde_json::from_str(&json).unwrap();
+
+        // Verify all fields
+        assert_eq!(deserialized.sessions.len(), 2);
+        assert_eq!(deserialized.sessions[0].id, "test1");
+        assert_eq!(deserialized.sessions[0].duration, 10.5);
+        assert_eq!(deserialized.sessions[1].id, "test2");
+        assert_eq!(deserialized.sessions[1].duration, 20.3);
+    }
+
+    #[test]
+    fn test_session_with_all_fields() {
+        let session = Session {
+            id: "full-session".to_string(),
+            timestamp: "2024-11-02T15:30:00Z".to_string(),
+            audio_path: "audio/full-session.wav".to_string(),
+            duration: 123.45,
+            preview: "Complete preview text".to_string(),
+            transcript_path: "text/full-session.txt".to_string(),
+            clipboard_copied: true,
+        };
+
+        let json = serde_json::to_string(&session).unwrap();
+        let deserialized: Session = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.id, "full-session");
+        assert_eq!(deserialized.timestamp, "2024-11-02T15:30:00Z");
+        assert_eq!(deserialized.audio_path, "audio/full-session.wav");
+        assert_eq!(deserialized.duration, 123.45);
+        assert_eq!(deserialized.preview, "Complete preview text");
+        assert_eq!(deserialized.transcript_path, "text/full-session.txt");
+        assert_eq!(deserialized.clipboard_copied, true);
+    }
+}

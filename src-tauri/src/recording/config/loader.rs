@@ -29,3 +29,87 @@ pub fn load_config() -> Result<WhisperConfig, String> {
     serde_json::from_str(&content)
         .map_err(|e| format!("Failed to parse config file: {}", e))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_valid_config() {
+        let json = r#"{
+            "whisperPath": "/usr/local/bin/whisper-cli",
+            "modelPath": "/models/ggml-base.bin"
+        }"#;
+
+        let config: Result<WhisperConfig, _> = serde_json::from_str(json);
+        assert!(config.is_ok());
+
+        let config = config.unwrap();
+        assert_eq!(config.whisper_path, "/usr/local/bin/whisper-cli");
+        assert_eq!(config.model_path, "/models/ggml-base.bin");
+        assert_eq!(config.voice_notes_dir, None);
+    }
+
+    #[test]
+    fn test_parse_config_with_voice_notes_dir() {
+        let json = r#"{
+            "whisperPath": "/usr/local/bin/whisper-cli",
+            "modelPath": "/models/ggml-base.bin",
+            "voiceNotesDir": "/custom/notes"
+        }"#;
+
+        let config: Result<WhisperConfig, _> = serde_json::from_str(json);
+        assert!(config.is_ok());
+
+        let config = config.unwrap();
+        assert_eq!(config.voice_notes_dir, Some("/custom/notes".to_string()));
+    }
+
+    #[test]
+    fn test_parse_invalid_json() {
+        let json = r#"{
+            "whisperPath": "/usr/local/bin/whisper-cli"
+            "modelPath": "/models/ggml-base.bin"
+        }"#;
+
+        let config: Result<WhisperConfig, _> = serde_json::from_str(json);
+        assert!(config.is_err());
+    }
+
+    #[test]
+    fn test_parse_missing_required_fields() {
+        let json = r#"{
+            "whisperPath": "/usr/local/bin/whisper-cli"
+        }"#;
+
+        let config: Result<WhisperConfig, _> = serde_json::from_str(json);
+        assert!(config.is_err());
+    }
+
+    #[test]
+    fn test_parse_windows_paths() {
+        let json = r#"{
+            "whisperPath": "C:\\whisper\\whisper.exe",
+            "modelPath": "C:\\whisper\\models\\ggml-base.bin"
+        }"#;
+
+        let config: Result<WhisperConfig, _> = serde_json::from_str(json);
+        assert!(config.is_ok());
+
+        let config = config.unwrap();
+        assert_eq!(config.whisper_path, "C:\\whisper\\whisper.exe");
+        assert_eq!(config.model_path, "C:\\whisper\\models\\ggml-base.bin");
+    }
+
+    #[test]
+    fn test_parse_extra_fields_ignored() {
+        let json = r#"{
+            "whisperPath": "/usr/local/bin/whisper-cli",
+            "modelPath": "/models/ggml-base.bin",
+            "extraField": "should be ignored"
+        }"#;
+
+        let config: Result<WhisperConfig, _> = serde_json::from_str(json);
+        assert!(config.is_ok());
+    }
+}
