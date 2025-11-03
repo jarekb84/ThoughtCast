@@ -1,0 +1,3 @@
+npm run integration-precheck
+
+npm run tauri:build
