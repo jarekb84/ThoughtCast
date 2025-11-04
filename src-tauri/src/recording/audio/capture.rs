@@ -57,7 +57,10 @@ fn run_audio_capture_loop(
     // Get the default input device
     let device = host
         .default_input_device()
-        .ok_or("No microphone detected. Please check your audio settings.")?;
+        .ok_or(
+            "No microphone access. Please grant microphone permission in \
+             System Settings → Privacy & Security → Microphone → ThoughtCast"
+        )?;
 
     // Get the default input config
     let config = device
