@@ -181,6 +181,39 @@ ThoughtCast/
 - Ensure port 5173 is not already in use
 - Try running `npm run dev` first to verify Vite works
 
+### macOS: Microphone permission issues
+If recording fails on macOS with "No microphone access" error:
+- The app should appear in **System Settings → Privacy & Security → Microphone**
+- If permission dialog doesn't appear on first recording attempt, check that `Info.plist` is included in the app bundle
+- To manually grant permission: Open **System Settings → Privacy & Security → Microphone**, find **ThoughtCast**, and toggle it on
+- After granting permission, restart the recording - no app restart needed
+
+#### Testing macOS Permissions
+
+**Test Case 1: Fresh Install - Grant Permission**
+1. Install app on macOS with no prior permission state
+2. Click "Start Recording"
+3. Verify system permission dialog appears with usage description
+4. Click "OK" to grant permission
+5. Verify recording proceeds and audio is captured
+
+**Test Case 2: Fresh Install - Deny Permission**
+1. Install app on macOS with no prior permission state
+2. Click "Start Recording"
+3. Verify system permission dialog appears
+4. Click "Don't Allow"
+5. Verify error message displays with clear System Settings path
+
+**Test Case 3: Permission Revocation**
+1. Grant permission (Test Case 1)
+2. Open **System Settings → Privacy & Security → Microphone**
+3. Disable ThoughtCast permission
+4. Return to app and click "Start Recording"
+5. Verify error message displayed
+6. Re-enable permission in System Settings
+7. Click "Start Recording" again (no app restart needed)
+8. Verify recording works
+
 ## Getting Help
 
 - Check the [Tauri documentation](https://tauri.app/)
