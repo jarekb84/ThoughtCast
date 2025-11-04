@@ -1,9 +1,13 @@
 import SessionList from "../features/sessions/SessionList";
 import SessionViewer from "../features/sessions/SessionViewer";
 import { useRecordingWorkflow } from "./useRecordingWorkflow";
+import { useAppVersion } from "./useAppVersion";
 import "./App.css";
 
 function App() {
+  // Set app version in window title
+  useAppVersion();
+
   const {
     sessions,
     selectedId,

@@ -35,3 +35,6 @@ build/
 *.deb
 *.rpm
 *.AppImage
+
+# Local build versioning
+.local-build-counter

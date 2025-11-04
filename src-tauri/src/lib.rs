@@ -105,6 +105,11 @@ fn retranscribe_session(session_id: String) -> Result<String, String> {
     recording::retranscribe_session(&session_id)
 }
 
+#[tauri::command]
+fn get_app_version(app: tauri::AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let app_state = AppState {
@@ -139,7 +144,8 @@ pub fn run() {
         load_config,
         load_transcript,
         copy_transcript_to_clipboard,
-        retranscribe_session
+        retranscribe_session,
+        get_app_version
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
