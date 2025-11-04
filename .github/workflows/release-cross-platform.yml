@@ -2,18 +2,41 @@ name: Build and Release
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Release version (e.g., v0.1.0)'
-        required: true
-        type: string
+
+permissions:
+  contents: write
 
 jobs:
+  get-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_tag.outputs.version }}
+      tag: ${{ steps.get_tag.outputs.tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get latest tag
+        id: get_tag
+        run: |
+          # Get the latest tag from main branch
+          LATEST_TAG=$(git describe --tags --abbrev=0 --match "v*" origin/main || echo "v0.0.0")
+          echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          # Strip 'v' prefix for version number
+          VERSION="${LATEST_TAG#v}"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Using tag: $LATEST_TAG (version: $VERSION)"
+
   build-windows:
+    needs: get-version
     runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -41,7 +64,7 @@ jobs:
         run: npm install
 
       - name: Build Windows app
-        run: npm run tauri:build
+        run: npm run tauri:build:ci
 
       - name: Verify Windows build artifacts
         shell: bash
@@ -60,10 +83,13 @@ jobs:
           path: src-tauri/target/release/bundle/nsis/*.exe
 
   build-macos:
+    needs: get-version
     runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -91,7 +117,7 @@ jobs:
         run: npm install
 
       - name: Build macOS app
-        run: npm run tauri:build
+        run: npm run tauri:build:ci
 
       - name: Verify macOS build artifacts
         run: |
@@ -109,10 +135,8 @@ jobs:
           path: src-tauri/target/release/bundle/dmg/*.dmg
 
   create-release:
-    needs: [build-windows, build-macos]
+    needs: [get-version, build-windows, build-macos]
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
@@ -146,8 +170,8 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.event.inputs.version }}
-          name: Release ${{ github.event.inputs.version }}
+          tag_name: ${{ needs.get-version.outputs.tag }}
+          name: Release ${{ needs.get-version.outputs.tag }}
           draft: false
           prerelease: false
           files: |
