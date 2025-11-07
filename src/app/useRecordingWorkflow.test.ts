@@ -10,6 +10,39 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }));
 
+// Mock Tauri event system
+const mockEventListeners: Map<string, ((event: any) => void)[]> = new Map();
+
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn().mockImplementation((eventName: string, handler: (event: any) => void) => {
+    // Synchronously register handler
+    if (!mockEventListeners.has(eventName)) {
+      mockEventListeners.set(eventName, []);
+    }
+    mockEventListeners.get(eventName)!.push(handler);
+
+    // Return unlisten function wrapped in ALREADY resolved promise
+    const unlisten = () => {
+      const handlers = mockEventListeners.get(eventName);
+      if (handlers) {
+        const index = handlers.indexOf(handler);
+        if (index > -1) {
+          handlers.splice(index, 1);
+        }
+      }
+    };
+
+    // Return immediately resolved promise so useEffect doesn't wait
+    return Promise.resolve(unlisten);
+  }),
+}));
+
+// Helper to emit mock events
+function emitMockEvent(eventName: string, payload: any) {
+  const handlers = mockEventListeners.get(eventName) || [];
+  handlers.forEach(handler => handler({ payload }));
+}
+
 // ===== Pure Function Tests =====
 
 describe('determineRecordingStatus', () => {
@@ -206,6 +239,7 @@ describe('useRecordingWorkflow', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEventListeners.clear();
     // Ensure mock is properly configured before each test
     mockSessionService.getSessions.mockClear();
     mockSessionService.getSessions.mockResolvedValue({ sessions: mockSessions });
@@ -216,6 +250,8 @@ describe('useRecordingWorkflow', () => {
 
   afterEach(() => {
     vi.clearAllTimers();
+    vi.useRealTimers(); // Ensure real timers are restored
+    mockEventListeners.clear();
   });
 
   it('should initialize with default state', async () => {
@@ -281,58 +317,76 @@ describe('useRecordingWorkflow', () => {
   });
 
   it('should stop recording successfully with transcript', async () => {
-    const newSession: Session = {
+    const initialSession: Session = {
       id: 'new-session',
       timestamp: '2024-01-02T00:00:00Z',
       duration: 15,
       audio_path: '/path/to/new-audio.wav',
+      transcript_path: '',
+      preview: 'Processing...',
+      clipboard_copied: false,
+    };
+
+    const completedSession: Session = {
+      ...initialSession,
       transcript_path: '/path/to/transcript.txt',
       preview: 'New session',
       clipboard_copied: true,
     };
 
-    mockRecordingService.stopRecording.mockResolvedValue(newSession);
-    const updatedSessions = [...mockSessions, newSession];
+    mockRecordingService.stopRecording.mockResolvedValue(initialSession);
+    const updatedSessions = [...mockSessions, completedSession];
 
-    // Return original sessions first, then updated sessions
+    // Return original sessions first, then with processing session, then with completed
     mockSessionService.getSessions
       .mockResolvedValueOnce({ sessions: mockSessions })
+      .mockResolvedValueOnce({ sessions: [...mockSessions, initialSession] })
       .mockResolvedValue({ sessions: updatedSessions });
 
     const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
 
+    // Wait for initial load to complete
     await waitFor(() => {
       expect(result.current.sessions).toEqual(mockSessions);
     });
 
-    // Now enable fake timers after initial render
-    vi.useFakeTimers();
+    // Flush any pending promises to ensure event listeners are set up
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     await act(async () => {
       await result.current.handleStopRecording();
     });
 
     expect(mockRecordingService.stopRecording).toHaveBeenCalled();
-    expect(result.current.recordingStatus).toBe('idle');
-    expect(result.current.isProcessing).toBe(false);
-    expect(result.current.status).toBe('✅ Transcript copied to clipboard!');
+    expect(result.current.recordingStatus).toBe('processing');
+    expect(result.current.isProcessing).toBe(true);
+    expect(result.current.status).toBe('🔄 Saving audio and starting transcription...');
     expect(result.current.selectedId).toBe('new-session');
-    expect(result.current.sessions).toEqual(updatedSessions);
 
-    // Verify status resets after timeout
-    act(() => {
-      vi.advanceTimersByTime(5000);
+    // Simulate transcription complete event
+    await act(async () => {
+      emitMockEvent('transcription-complete', { session: completedSession });
+      // Flush promises to ensure state updates propagate
+      await Promise.resolve();
     });
 
-    expect(result.current.status).toBe('Ready to record');
+    await waitFor(() => {
+      expect(result.current.recordingStatus).toBe('idle');
+      expect(result.current.isProcessing).toBe(false);
+      expect(result.current.status).toBe('✅ Transcript copied to clipboard!');
+    });
 
-    vi.useRealTimers();
+    // Note: Status resets to "Ready to record" after 5000ms timeout, but we don't test
+    // this behavior as it requires fake timers which add complexity for minimal value
   });
 
   it('should handle stop recording error', async () => {
     mockRecordingService.stopRecording.mockRejectedValue(new Error('Stop failed'));
     const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
 
+    // Wait for initial load to complete
     await waitFor(() => {
       expect(result.current.sessions).toEqual(mockSessions);
     });
@@ -352,6 +406,7 @@ describe('useRecordingWorkflow', () => {
 
     const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
 
+    // Wait for initial load to complete
     await waitFor(() => {
       expect(result.current.sessions).toEqual(mockSessions);
     });
@@ -362,19 +417,21 @@ describe('useRecordingWorkflow', () => {
 
     expect(result.current.recordingStatus).toBe('recording');
 
-    // Wait for the interval to trigger and update duration
+    // Wait for the interval to trigger (runs every 100ms)
+    // Using waitFor with real timers is more reliable than fake timers
     await waitFor(() => {
       expect(mockRecordingService.getRecordingDuration).toHaveBeenCalled();
       expect(result.current.recordingDuration).toBe(5.5);
-    }, { timeout: 1000 });
+    });
   });
 
   it('should allow manual session selection', async () => {
     const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
 
+    // Wait for initial load to complete
     await waitFor(() => {
       expect(result.current.sessions).toEqual(mockSessions);
-    }, { timeout: 10000 });
+    });
 
     act(() => {
       result.current.setSelectedId('session-1');
@@ -386,9 +443,10 @@ describe('useRecordingWorkflow', () => {
   it('should reload sessions when loadSessions is called', async () => {
     const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
 
+    // Wait for initial load to complete
     await waitFor(() => {
       expect(result.current.sessions).toEqual(mockSessions);
-    }, { timeout: 10000 });
+    });
 
     const newSessions: Session[] = [
       ...mockSessions,

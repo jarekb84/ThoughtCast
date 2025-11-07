@@ -9,6 +9,7 @@ pub enum RecordingStatus {
     Idle,
     Recording,
     Paused,
+    Processing,
 }
 
 /// The state of an active recording session
@@ -34,14 +35,17 @@ impl RecordingState {
         }
     }
 
-    /// Check if currently recording (not idle or paused)
+    /// Check if currently recording (not idle, paused, or processing)
     pub fn is_recording(&self) -> bool {
         self.status == RecordingStatus::Recording
     }
 
-    /// Check if recording session is active (recording or paused, but not idle)
+    /// Check if recording session is active (recording or paused, but not idle or processing)
     pub fn is_active(&self) -> bool {
-        matches!(self.status, RecordingStatus::Recording | RecordingStatus::Paused)
+        matches!(
+            self.status,
+            RecordingStatus::Recording | RecordingStatus::Paused
+        )
     }
 }
 

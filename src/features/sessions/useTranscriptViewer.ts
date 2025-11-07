@@ -82,7 +82,7 @@ export function useTranscriptViewer(
     };
 
     loadTranscript();
-  }, [selectedSession?.id, transcriptService]);
+  }, [selectedSession?.id, selectedSession?.transcript_path, transcriptService]);
 
   const handleCopyToClipboard = useCallback(async () => {
     if (!selectedSession) return;

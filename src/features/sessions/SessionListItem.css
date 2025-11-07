@@ -85,3 +85,34 @@
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
+
+/* Processing state - subtle warning colors */
+.session-list-item-processing {
+  background-color: rgba(255, 152, 0, 0.08);
+  border-color: var(--color-warning);
+}
+
+.session-list-item-processing:hover {
+  background-color: rgba(255, 152, 0, 0.15);
+  border-color: var(--color-warning-hover);
+}
+
+.session-list-item-processing .session-list-item-preview {
+  color: var(--color-warning);
+  font-style: italic;
+}
+
+/* Processing spinner animation */
+.processing-spinner {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

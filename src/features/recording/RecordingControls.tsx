@@ -39,7 +39,8 @@ export default function RecordingControls({
     return (
       <div className="recording-controls">
         <Button variant="warning" disabled className="btn-pulse">
-          ⏳ Processing...
+          <span className="spinner-icon">⟳</span>
+          Processing...
         </Button>
       </div>
     );

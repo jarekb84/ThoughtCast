@@ -43,6 +43,42 @@
 .status-text {
   font-size: var(--font-size-base);
   color: var(--color-text-primary);
+  transition: color var(--transition-base);
+}
+
+/* Status message color coding */
+.status-text.status-success {
+  color: var(--color-success);
+  font-weight: var(--font-weight-medium);
+}
+
+.status-text.status-error {
+  color: var(--color-danger);
+  font-weight: var(--font-weight-medium);
+}
+
+.status-text.status-warning {
+  color: var(--color-warning);
+  font-weight: var(--font-weight-medium);
+}
+
+.status-text.status-processing {
+  color: var(--color-warning);
+  font-weight: var(--font-weight-medium);
+}
+
+.status-text.status-recording {
+  color: var(--color-danger);
+  font-weight: var(--font-weight-medium);
+}
+
+.status-text.status-paused {
+  color: var(--color-neutral);
+  font-weight: var(--font-weight-medium);
+}
+
+.status-text.status-default {
+  color: var(--color-text-primary);
 }
 
 .session-details {
@@ -108,6 +144,39 @@
 .transcript-text.no-transcript {
   color: var(--color-text-muted);
   font-style: italic;
+}
+
+.transcript-text.transcript-processing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  color: var(--color-warning);
+  background-color: rgba(255, 152, 0, 0.05);
+  border-color: var(--color-warning);
+}
+
+.transcript-processing .processing-icon {
+  display: inline-block;
+  font-size: var(--font-size-3xl);
+  animation: spin 1.5s linear infinite;
+}
+
+.transcript-processing .processing-hint {
+  margin: var(--space-sm) 0 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  font-style: normal;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .no-selection {

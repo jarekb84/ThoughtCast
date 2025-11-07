@@ -21,13 +21,17 @@ export default function SessionListItem({
   isSelected,
   onSelect,
 }: SessionListItemProps) {
+  const isProcessing = session.preview === "Processing...";
+
   return (
     <div
-      className={`session-list-item ${isSelected ? "session-list-item-selected" : ""}`}
+      className={`session-list-item ${isSelected ? "session-list-item-selected" : ""} ${isProcessing ? "session-list-item-processing" : ""}`}
       onClick={onSelect}
     >
       <div className="session-list-item-header">
-        <span className="session-list-item-icon">🎙️</span>
+        <span className="session-list-item-icon">
+          {isProcessing ? <span className="processing-spinner">⟳</span> : "🎙️"}
+        </span>
         <span className="session-list-item-timestamp">
           {formatShortTimestamp(session.timestamp)}
         </span>

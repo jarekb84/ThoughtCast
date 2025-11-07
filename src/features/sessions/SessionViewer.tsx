@@ -7,6 +7,31 @@ import { Button, Card, InfoRow } from "../../shared/components";
 import { useTranscriptViewer } from "./useTranscriptViewer";
 import "./SessionViewer.css";
 
+/**
+ * Determines the CSS class for status messages based on content
+ */
+function getStatusClass(status: string): string {
+  if (status.includes("✅") || status.includes("copied")) {
+    return "status-success";
+  }
+  if (status.includes("❌") || status.includes("Error")) {
+    return "status-error";
+  }
+  if (status.includes("⚠️") || status.includes("failed")) {
+    return "status-warning";
+  }
+  if (status.includes("🔄") || status.includes("Processing") || status.includes("transcription")) {
+    return "status-processing";
+  }
+  if (status.includes("⏺️") || status.includes("Recording")) {
+    return "status-recording";
+  }
+  if (status.includes("⏸️") || status.includes("paused")) {
+    return "status-paused";
+  }
+  return "status-default";
+}
+
 interface SessionViewerProps {
   selectedSession: Session | null;
   recordingStatus: RecordingStatus;
@@ -117,6 +142,14 @@ export default function SessionViewer({
                 </div>
               ) : transcript && transcript.length > 0 ? (
                 <div className="transcript-text">{transcript}</div>
+              ) : selectedSession.preview === "Processing..." ? (
+                <div className="transcript-text transcript-processing">
+                  <span className="processing-icon">⟳</span>
+                  <span>Transcription in progress...</span>
+                  <p className="processing-hint">
+                    The audio has been saved. Whisper is transcribing in the background.
+                  </p>
+                </div>
               ) : (
                 <div className="transcript-text no-transcript">
                   {selectedSession.preview || "No transcript available"}
@@ -135,7 +168,9 @@ export default function SessionViewer({
       </div>
 
       <div className="status-bar">
-        <span className="status-text">Status: {status}</span>
+        <span className={`status-text ${getStatusClass(status)}`}>
+          Status: {status}
+        </span>
       </div>
     </div>
   );

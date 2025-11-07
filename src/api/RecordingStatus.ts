@@ -3,4 +3,4 @@
  *
  * Matches the Rust RecordingStatus enum from the backend
  */
-export type RecordingStatus = 'idle' | 'recording' | 'paused';
+export type RecordingStatus = 'idle' | 'recording' | 'paused' | 'processing';
