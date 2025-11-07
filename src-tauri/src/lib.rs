@@ -1,8 +1,11 @@
 mod recording;
 
-use recording::{RecordingState, RecordingStatus, Session, SessionIndex, SharedRecordingState, WhisperConfig};
+use recording::{
+    RecordingState, RecordingStatus, Session, SessionIndex, SharedRecordingState,
+    TranscriptionCompleteEvent, TranscriptionErrorEvent, TranscriptionResult, WhisperConfig,
+};
 use std::sync::{Arc, Mutex};
-use tauri::State;
+use tauri::{Emitter, State};
 
 struct AppState {
     recording: SharedRecordingState,
@@ -33,9 +36,40 @@ fn cancel_recording(state: State<AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn stop_recording(state: State<AppState>) -> Result<Session, String> {
+fn stop_recording(state: State<AppState>, app: tauri::AppHandle) -> Result<Session, String> {
     let recording_state = Arc::clone(&state.inner().recording);
-    recording::stop_recording(recording_state)
+
+    // Stop recording and save audio (synchronous, fast operation)
+    let session = recording::stop_recording(recording_state.clone())?;
+
+    // Prepare data for async transcription
+    let session_id = session.id.clone();
+    let audio_path = recording::get_storage_dir()?.join(&session.audio_path);
+
+    // Orchestrate async transcription with event emission callback
+    recording::orchestrate_async_transcription(
+        recording_state,
+        session_id,
+        audio_path,
+        move |result| match result {
+            TranscriptionResult::Success(updated_session) => {
+                let _ = app.emit(
+                    "transcription-complete",
+                    TranscriptionCompleteEvent {
+                        session: updated_session,
+                    },
+                );
+            }
+            TranscriptionResult::Error { session_id, error } => {
+                let _ = app.emit(
+                    "transcription-error",
+                    TranscriptionErrorEvent { session_id, error },
+                );
+            }
+        },
+    );
+
+    Ok(session)
 }
 
 #[tauri::command]

@@ -79,14 +79,15 @@ pub fn cancel_recording(state: SharedRecordingState) -> Result<(), String> {
     Ok(())
 }
 
-/// Stop the current recording session and save the result
+/// Stop the current recording session and save the audio
 ///
-/// Coordinates the full workflow:
+/// This is the first phase of the stop workflow:
 /// 1. Stops audio capture
 /// 2. Saves audio to WAV file
-/// 3. Transcribes audio (if configured)
-/// 4. Copies transcript to clipboard (if successful)
-/// 5. Creates and persists session record
+/// 3. Creates initial session record (without transcription)
+/// 4. Returns session info for async transcription
+///
+/// Transcription happens asynchronously via process_transcription_async
 ///
 /// Can be called from Recording or Paused state.
 pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
@@ -108,8 +109,8 @@ pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
     // Calculate duration (excluding paused time)
     let duration = calculate_duration(&state_guard);
 
-    // Mark as idle (this will stop the recording thread)
-    state_guard.status = RecordingStatus::Idle;
+    // Mark as processing (this will stop the recording thread)
+    state_guard.status = RecordingStatus::Processing;
 
     // Wait a bit for the recording thread to finish collecting samples
     drop(state_guard);
@@ -120,27 +121,114 @@ pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
     let timestamp = Utc::now();
     let id = timestamp.format("%Y-%m-%d_%H-%M-%S").to_string();
 
-    // Save audio file
-    let audio_path = save_audio_file(&id, &state_guard)?;
+    // Save audio file (returned for Tauri command to use for async transcription)
+    let _audio_path = save_audio_file(&id, &state_guard)?;
 
-    // Attempt transcription
-    let (transcript_path, preview, clipboard_copied) = process_transcription(&audio_path, &id);
-
-    // Create session record
+    // Create initial session record (transcription will be added later)
     let session = Session {
         id: id.clone(),
         timestamp: timestamp.to_rfc3339(),
         audio_path: format!("audio/{}.wav", id),
         duration,
-        preview,
-        transcript_path,
-        clipboard_copied,
+        preview: "Processing...".to_string(),
+        transcript_path: String::new(),
+        clipboard_copied: false,
     };
 
-    // Persist session to index
+    // Persist initial session to index
     add_session(session.clone())?;
 
     Ok(session)
+}
+
+/// Orchestrate async transcription in background thread
+///
+/// This function spawns a background thread that:
+/// 1. Processes transcription
+/// 2. Updates session with results
+/// 3. Updates recording state to idle
+/// 4. Emits Tauri event with results
+///
+/// This is domain orchestration logic extracted from the Tauri command layer.
+///
+/// # Arguments
+/// * `state` - Shared recording state for status updates
+/// * `session_id` - ID of session to transcribe
+/// * `audio_path` - Path to audio file
+/// * `event_emitter` - Callback to emit Tauri events (injected dependency)
+pub fn orchestrate_async_transcription<F>(
+    state: SharedRecordingState,
+    session_id: String,
+    audio_path: std::path::PathBuf,
+    event_emitter: F,
+) where
+    F: Fn(TranscriptionResult) + Send + 'static,
+{
+    thread::spawn(move || {
+        let result = process_transcription_async(audio_path, session_id.clone());
+
+        // Update state to idle regardless of success/failure
+        if let Ok(mut state_guard) = state.lock() {
+            state_guard.status = RecordingStatus::Idle;
+        }
+
+        // Emit event via injected callback
+        match result {
+            Ok(session) => event_emitter(TranscriptionResult::Success(session)),
+            Err(error) => event_emitter(TranscriptionResult::Error {
+                session_id,
+                error,
+            }),
+        }
+    });
+}
+
+/// Result of async transcription for event emission
+pub enum TranscriptionResult {
+    Success(Session),
+    Error { session_id: String, error: String },
+}
+
+/// Process transcription asynchronously and update session
+///
+/// This is the second phase of the stop workflow:
+/// 1. Transcribes audio (if configured)
+/// 2. Copies transcript to clipboard (if successful)
+/// 3. Updates session record with transcription results
+///
+/// Returns updated session on success, or error message on failure
+pub fn process_transcription_async(
+    audio_path: std::path::PathBuf,
+    session_id: String,
+) -> Result<Session, String> {
+    use crate::recording::session::storage::{load_sessions, save_sessions};
+
+    // Attempt transcription
+    let (transcript_path, preview, clipboard_copied) =
+        process_transcription(&audio_path, &session_id);
+
+    // Load sessions to update
+    let mut index = load_sessions()?;
+
+    // Find and update the session
+    let updated_session = {
+        let session = index
+            .sessions
+            .iter_mut()
+            .find(|s| s.id == session_id)
+            .ok_or_else(|| format!("Session not found: {}", session_id))?;
+
+        session.transcript_path = transcript_path;
+        session.preview = preview;
+        session.clipboard_copied = clipboard_copied;
+
+        session.clone()
+    };
+
+    // Save updated sessions
+    save_sessions(&index)?;
+
+    Ok(updated_session)
 }
 
 /// Calculate recording duration from start time, excluding paused time

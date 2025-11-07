@@ -1,5 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Session, RecordingStatus, useApi } from '../api';
+import {
+  Session,
+  RecordingStatus,
+  TranscriptionCompleteEvent,
+  TranscriptionErrorEvent,
+  useApi,
+} from '../api';
+import { listen } from '@tauri-apps/api/event';
 import { logger } from '../shared/utils/logger';
 
 /**
@@ -34,6 +41,61 @@ export function autoSelectFirstSession(
     return sessions[0].id;
   }
   return currentSelectedId;
+}
+
+/**
+ * Handle transcription completion event
+ */
+export function handleTranscriptionComplete(
+  session: Session,
+  callbacks: {
+    setStatus: (status: string) => void;
+    setRecordingStatus: (status: RecordingStatus) => void;
+    setIsProcessing: (processing: boolean) => void;
+    loadSessions: () => Promise<void>;
+  }
+): void {
+  logger.info('Transcription completed:', session.id);
+
+  // Determine and set appropriate status
+  const resultStatus = determineRecordingStatus(session);
+  callbacks.setStatus(resultStatus);
+
+  // Update recording status to idle
+  callbacks.setRecordingStatus('idle');
+  callbacks.setIsProcessing(false);
+
+  // Reload sessions to show updated transcript
+  callbacks.loadSessions();
+
+  // Reset status after delay
+  setTimeout(() => callbacks.setStatus('Ready to record'), 5000);
+}
+
+/**
+ * Handle transcription error event
+ */
+export function handleTranscriptionError(
+  sessionId: string,
+  error: string,
+  callbacks: {
+    setStatus: (status: string) => void;
+    setRecordingStatus: (status: RecordingStatus) => void;
+    setIsProcessing: (processing: boolean) => void;
+    loadSessions: () => Promise<void>;
+  }
+): void {
+  logger.error('Transcription failed for session:', sessionId, error);
+
+  callbacks.setStatus(`⚠️ Recording saved (transcription failed: ${error})`);
+  callbacks.setRecordingStatus('idle');
+  callbacks.setIsProcessing(false);
+
+  // Reload sessions to show updated state
+  callbacks.loadSessions();
+
+  // Reset status after delay
+  setTimeout(() => callbacks.setStatus('Ready to record'), 5000);
 }
 
 interface RecordingWorkflowState {
@@ -138,26 +200,23 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
 
   const handleStopRecording = useCallback(async () => {
     try {
-      setRecordingStatus('idle');
+      setRecordingStatus('processing');
       setIsProcessing(true);
-      setStatus("🔄 Saving and transcribing audio...");
+      setStatus("🔄 Saving audio and starting transcription...");
 
       const newSession = await recordingService.stopRecording();
 
-      // Determine and set appropriate status
-      const resultStatus = determineRecordingStatus(newSession);
-      setStatus(resultStatus);
+      // Session created with "Processing..." preview
+      // Actual transcription happens in background
+      // Events will update when complete
 
-      // Reload sessions and select the new one
+      // Reload sessions to show new session
       await loadSessions();
       setSelectedId(newSession.id);
-
-      // Reset status after delay
-      setTimeout(() => setStatus("Ready to record"), 5000);
     } catch (error) {
       logger.error("Failed to stop recording:", error);
       setStatus(`❌ Error: ${error}`);
-    } finally {
+      setRecordingStatus('idle');
       setIsProcessing(false);
     }
   }, [recordingService, loadSessions]);
@@ -166,6 +225,43 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
   useEffect(() => {
     loadSessions();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Listen for transcription events
+  useEffect(() => {
+    const setupListeners = async () => {
+      // Create callback bundle for event handlers
+      const callbacks = {
+        setStatus,
+        setRecordingStatus,
+        setIsProcessing,
+        loadSessions,
+      };
+
+      // Listen for successful transcription completion
+      const unlistenComplete = await listen<TranscriptionCompleteEvent>(
+        'transcription-complete',
+        (event) => handleTranscriptionComplete(event.payload.session, callbacks)
+      );
+
+      // Listen for transcription errors
+      const unlistenError = await listen<TranscriptionErrorEvent>(
+        'transcription-error',
+        (event) => handleTranscriptionError(event.payload.session_id, event.payload.error, callbacks)
+      );
+
+      // Cleanup listeners on unmount
+      return () => {
+        unlistenComplete();
+        unlistenError();
+      };
+    };
+
+    const cleanupPromise = setupListeners();
+
+    return () => {
+      cleanupPromise.then((cleanup) => cleanup?.());
+    };
+  }, [loadSessions]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Timer for recording duration
   useEffect(() => {

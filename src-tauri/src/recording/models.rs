@@ -31,6 +31,19 @@ pub struct WhisperConfig {
     pub voice_notes_dir: Option<String>,
 }
 
+/// Event payload for transcription completion
+#[derive(Debug, Clone, Serialize)]
+pub struct TranscriptionCompleteEvent {
+    pub session: Session,
+}
+
+/// Event payload for transcription errors
+#[derive(Debug, Clone, Serialize)]
+pub struct TranscriptionErrorEvent {
+    pub session_id: String,
+    pub error: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

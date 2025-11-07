@@ -10,7 +10,9 @@ mod utils;
 // Public API exports
 
 // Data models
-pub use models::{Session, SessionIndex, WhisperConfig};
+pub use models::{
+    Session, SessionIndex, TranscriptionCompleteEvent, TranscriptionErrorEvent, WhisperConfig,
+};
 
 // State management
 pub use state::{RecordingState, RecordingStatus, SharedRecordingState};
@@ -20,8 +22,9 @@ pub use config::load_config;
 
 // Session operations (main API surface)
 pub use session::{
-    cancel_recording, load_sessions, load_transcript, pause_recording, resume_recording,
-    retranscribe_session, start_recording, stop_recording,
+    cancel_recording, load_sessions, load_transcript, orchestrate_async_transcription,
+    pause_recording, resume_recording, retranscribe_session, start_recording, stop_recording,
+    TranscriptionResult,
 };
 
 // Utility functions
