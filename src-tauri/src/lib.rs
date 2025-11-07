@@ -78,6 +78,21 @@ fn get_recording_status(state: State<AppState>) -> Result<RecordingStatus, Strin
 }
 
 #[tauri::command]
+fn get_audio_levels(state: State<AppState>) -> Result<Vec<f32>, String> {
+    let recording_state = state.inner().recording.lock().unwrap();
+
+    // Only return audio levels if actively recording (not paused or idle)
+    if !recording_state.is_recording() {
+        return Ok(vec![]);
+    }
+
+    let samples = Arc::clone(&recording_state.samples);
+    drop(recording_state); // Release lock before calculation
+
+    Ok(recording::get_audio_levels(samples))
+}
+
+#[tauri::command]
 fn load_config() -> Result<WhisperConfig, String> {
     recording::load_config()
 }
@@ -141,6 +156,7 @@ pub fn run() {
         get_sessions,
         get_recording_duration,
         get_recording_status,
+        get_audio_levels,
         load_config,
         load_transcript,
         copy_transcript_to_clipboard,

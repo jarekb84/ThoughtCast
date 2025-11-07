@@ -1,0 +1,22 @@
+@import "../../shared/styles/design-system.css";
+
+.audio-level-indicator {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 var(--space-sm);
+}
+
+.audio-level-canvas {
+  display: block;
+  image-rendering: crisp-edges;
+  width: 175px;
+  height: 24px;
+}
+
+/* Larger screens */
+@media (min-width: 768px) {
+  .audio-level-canvas {
+    width: 175px;
+    height: 28px;
+  }
+}

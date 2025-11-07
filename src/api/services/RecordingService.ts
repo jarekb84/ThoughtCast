@@ -49,6 +49,13 @@ export interface IRecordingService {
    * @throws {ApiError} If status retrieval fails
    */
   getRecordingStatus(): Promise<RecordingStatus>;
+
+  /**
+   * Get recent audio level data for visualization
+   * @returns Array of amplitude values (0.0-1.0), empty if not recording
+   * @throws {ApiError} If audio level retrieval fails
+   */
+  getAudioLevels(): Promise<number[]>;
 }
 
 /**
@@ -117,6 +124,15 @@ export class TauriRecordingService implements IRecordingService {
       undefined,
       'Failed to get recording status',
       'RECORDING_STATUS_FAILED'
+    );
+  }
+
+  async getAudioLevels(): Promise<number[]> {
+    return wrapTauriInvoke<number[]>(
+      'get_audio_levels',
+      undefined,
+      'Failed to get audio levels',
+      'AUDIO_LEVELS_FAILED'
     );
   }
 }
@@ -268,6 +284,23 @@ export class MockRecordingService implements IRecordingService {
   async getRecordingStatus(): Promise<RecordingStatus> {
     await new Promise(resolve => setTimeout(resolve, 10));
     return this.status;
+  }
+
+  async getAudioLevels(): Promise<number[]> {
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    // Return empty array if not actively recording
+    if (this.status !== 'recording') {
+      return [];
+    }
+
+    // Generate mock audio levels (simulated speech pattern)
+    return Array.from({ length: 20 }, (_, i) => {
+      // Create a wave pattern with some randomness
+      const wave = Math.sin(i * 0.5) * 0.5 + 0.5;
+      const noise = Math.random() * 0.3;
+      return Math.min(1.0, wave * 0.6 + noise * 0.4);
+    });
   }
 
   /**
