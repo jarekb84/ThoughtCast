@@ -2,6 +2,8 @@ import { formatDuration } from "../../shared/formatters/duration";
 import { RecordingStatus } from "../../api";
 import { Button } from "../../shared/components";
 import { isPausedStatus, isIdleStatus } from "./recordingStatusChecks";
+import AudioLevelIndicator from "./AudioLevelIndicator";
+import { useAudioLevels } from "./useAudioLevels";
 import "./RecordingControls.css";
 
 interface RecordingControlsProps {
@@ -31,6 +33,8 @@ export default function RecordingControls({
   onCancelRecording,
   onStopRecording,
 }: RecordingControlsProps) {
+  const audioLevels = useAudioLevels(recordingStatus);
+
   if (isProcessing) {
     return (
       <div className="recording-controls">
@@ -56,6 +60,10 @@ export default function RecordingControls({
 
   return (
     <div className="recording-controls">
+      {!isPaused && audioLevels.length > 0 && (
+        <AudioLevelIndicator levels={audioLevels} />
+      )}
+
       <div className={`recording-timer ${isPaused ? 'paused' : ''}`}>
         {formatDuration(recordingDuration)}
         {isPaused && <span className="pause-indicator"> PAUSED</span>}

@@ -27,5 +27,8 @@ pub use session::{
 // Utility functions
 pub use utils::{copy_to_clipboard, get_storage_dir};
 
+// Audio level calculation
+pub use audio::get_audio_levels;
+
 // Note: Internal modules (audio, transcription) are kept private
 // They are implementation details and should not be accessed directly from outside

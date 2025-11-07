@@ -88,6 +88,33 @@ describe('TauriRecordingService', () => {
       await expect(service.getRecordingDuration()).rejects.toThrow(ApiError);
     });
   });
+
+  describe('getAudioLevels', () => {
+    it('should return audio level data', async () => {
+      const mockLevels = [0.1, 0.2, 0.5, 0.8, 0.3];
+      mockInvoke.mockResolvedValue(mockLevels);
+
+      const result = await service.getAudioLevels();
+
+      expect(mockInvoke).toHaveBeenCalledWith('get_audio_levels', undefined);
+      expect(result).toEqual(mockLevels);
+    });
+
+    it('should return empty array when not recording', async () => {
+      mockInvoke.mockResolvedValue([]);
+
+      const result = await service.getAudioLevels();
+
+      expect(result).toEqual([]);
+    });
+
+    it('should wrap errors in ApiError', async () => {
+      mockInvoke.mockRejectedValue(new Error('Failed to get levels'));
+
+      await expect(service.getAudioLevels()).rejects.toThrow(ApiError);
+      await expect(service.getAudioLevels()).rejects.toThrow('Failed to get audio levels');
+    });
+  });
 });
 
 describe('MockRecordingService', () => {
@@ -241,6 +268,40 @@ describe('MockRecordingService', () => {
 
       const duration = await service.getRecordingDuration();
       expect(duration).toBe(0);
+    });
+  });
+
+  describe('getAudioLevels', () => {
+    it('should return empty array when idle', async () => {
+      const levels = await service.getAudioLevels();
+      expect(levels).toEqual([]);
+    });
+
+    it('should return empty array when paused', async () => {
+      await service.startRecording();
+      await service.pauseRecording();
+
+      const levels = await service.getAudioLevels();
+      expect(levels).toEqual([]);
+    });
+
+    it('should return audio levels when recording', async () => {
+      await service.startRecording();
+
+      const levels = await service.getAudioLevels();
+
+      expect(levels.length).toBe(20);
+      expect(levels.every(l => l >= 0 && l <= 1)).toBe(true);
+    });
+
+    it('should generate varied levels (not all identical)', async () => {
+      await service.startRecording();
+
+      const levels = await service.getAudioLevels();
+
+      // Check that not all values are the same (simulates variation)
+      const uniqueValues = new Set(levels);
+      expect(uniqueValues.size).toBeGreaterThan(1);
     });
   });
 
