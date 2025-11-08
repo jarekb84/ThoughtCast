@@ -12,6 +12,12 @@ pub struct Session {
     pub transcript_path: String,
     #[serde(default)]
     pub clipboard_copied: bool,
+    /// Time taken to transcribe in seconds (for progress estimation)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transcription_time_seconds: Option<f64>,
+    /// Model used for transcription (for filtering estimates by model)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_path: Option<String>,
 }
 
 /// Index containing all recording sessions
@@ -58,6 +64,8 @@ mod tests {
             preview: "This is a test preview".to_string(),
             transcript_path: "text/2024-11-02_15-30-00.txt".to_string(),
             clipboard_copied: true,
+            transcription_time_seconds: Some(6.8),
+            model_path: Some("/path/to/model.bin".to_string()),
         };
 
         let json = serde_json::to_string(&session).unwrap();
@@ -70,6 +78,11 @@ mod tests {
         assert_eq!(deserialized.preview, session.preview);
         assert_eq!(deserialized.transcript_path, session.transcript_path);
         assert_eq!(deserialized.clipboard_copied, session.clipboard_copied);
+        assert_eq!(deserialized.transcription_time_seconds, Some(6.8));
+        assert_eq!(
+            deserialized.model_path,
+            Some("/path/to/model.bin".to_string())
+        );
     }
 
     #[test]
@@ -86,6 +99,8 @@ mod tests {
 
         assert_eq!(session.transcript_path, "");
         assert_eq!(session.clipboard_copied, false);
+        assert_eq!(session.transcription_time_seconds, None);
+        assert_eq!(session.model_path, None);
     }
 
     #[test]
@@ -99,6 +114,8 @@ mod tests {
                 preview: "First session".to_string(),
                 transcript_path: "text/session1.txt".to_string(),
                 clipboard_copied: true,
+                transcription_time_seconds: Some(4.5),
+                model_path: Some("/model.bin".to_string()),
             },
             Session {
                 id: "session2".to_string(),
@@ -108,6 +125,8 @@ mod tests {
                 preview: "Second session".to_string(),
                 transcript_path: "text/session2.txt".to_string(),
                 clipboard_copied: false,
+                transcription_time_seconds: None,
+                model_path: None,
             },
         ];
 

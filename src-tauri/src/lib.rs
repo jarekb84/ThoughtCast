@@ -1,8 +1,9 @@
 mod recording;
 
 use recording::{
-    RecordingState, RecordingStatus, Session, SessionIndex, SharedRecordingState,
-    TranscriptionCompleteEvent, TranscriptionErrorEvent, TranscriptionResult, WhisperConfig,
+    estimate_transcription_time, extract_transcription_stats, RecordingState, RecordingStatus,
+    Session, SessionIndex, SharedRecordingState, TranscriptionCompleteEvent,
+    TranscriptionErrorEvent, TranscriptionEstimate, TranscriptionResult, WhisperConfig,
 };
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, State};
@@ -159,6 +160,14 @@ fn get_app_version(app: tauri::AppHandle) -> String {
     app.package_info().version.to_string()
 }
 
+#[tauri::command]
+fn get_transcription_estimate(audio_duration_seconds: f64) -> Result<Option<TranscriptionEstimate>, String> {
+    // Load sessions and extract transcription statistics
+    let session_index = recording::load_sessions()?;
+    let stats = extract_transcription_stats(&session_index.sessions);
+    Ok(estimate_transcription_time(&stats, audio_duration_seconds))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let app_state = AppState {
@@ -195,7 +204,8 @@ pub fn run() {
         load_transcript,
         copy_transcript_to_clipboard,
         retranscribe_session,
-        get_app_version
+        get_app_version,
+        get_transcription_estimate
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

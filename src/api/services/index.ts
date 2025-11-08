@@ -9,3 +9,9 @@ export { TauriTranscriptService, MockTranscriptService } from './TranscriptServi
 
 export type { IClipboardService } from './ClipboardService';
 export { TauriClipboardService, MockClipboardService } from './ClipboardService';
+
+export type { ITranscriptionStatsService } from './TranscriptionStatsService';
+export {
+  TauriTranscriptionStatsService,
+  MockTranscriptionStatsService,
+} from './TranscriptionStatsService';

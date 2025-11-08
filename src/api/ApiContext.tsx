@@ -4,10 +4,12 @@ import {
   IRecordingService,
   ITranscriptService,
   IClipboardService,
+  ITranscriptionStatsService,
   TauriSessionService,
   TauriRecordingService,
   TauriTranscriptService,
-  TauriClipboardService
+  TauriClipboardService,
+  TauriTranscriptionStatsService,
 } from './services';
 
 /**
@@ -18,6 +20,7 @@ export interface ApiServices {
   recordingService: IRecordingService;
   transcriptService: ITranscriptService;
   clipboardService: IClipboardService;
+  transcriptionStatsService: ITranscriptionStatsService;
 }
 
 /**
@@ -56,12 +59,16 @@ interface ApiProviderProps {
  * </ApiProvider>
  */
 export function ApiProvider({ children, services }: ApiProviderProps) {
-  const defaultServices = useMemo<ApiServices>(() => ({
-    sessionService: new TauriSessionService(),
-    recordingService: new TauriRecordingService(),
-    transcriptService: new TauriTranscriptService(),
-    clipboardService: new TauriClipboardService()
-  }), []);
+  const defaultServices = useMemo<ApiServices>(
+    () => ({
+      sessionService: new TauriSessionService(),
+      recordingService: new TauriRecordingService(),
+      transcriptService: new TauriTranscriptService(),
+      clipboardService: new TauriClipboardService(),
+      transcriptionStatsService: new TauriTranscriptionStatsService(),
+    }),
+    []
+  );
 
   const apiServices = services ?? defaultServices;
 

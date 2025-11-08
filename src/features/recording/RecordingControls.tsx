@@ -1,15 +1,19 @@
-import { formatDuration } from "../../shared/formatters/duration";
-import { RecordingStatus } from "../../api";
-import { Button } from "../../shared/components";
-import { isPausedStatus, isIdleStatus } from "./recordingStatusChecks";
-import AudioLevelIndicator from "./AudioLevelIndicator";
-import { useAudioLevels } from "./useAudioLevels";
-import "./RecordingControls.css";
+import { formatDuration } from '../../shared/formatters/duration';
+import { RecordingStatus } from '../../api';
+import { Button, ProgressBar } from '../../shared/components';
+import { isPausedStatus, isIdleStatus } from './recordingStatusChecks';
+import AudioLevelIndicator from './AudioLevelIndicator';
+import { useAudioLevels } from './useAudioLevels';
+import { useTranscriptionProgress } from '../transcription/useTranscriptionProgress';
+import { formatHumanReadableDuration } from '../transcription/formatHumanReadableDuration';
+import { prepareProgressDisplay } from '../transcription/prepareProgressDisplay';
+import './RecordingControls.css';
 
 interface RecordingControlsProps {
   recordingStatus: RecordingStatus;
   isProcessing: boolean;
   recordingDuration: number;
+  audioDurationSeconds: number;
   onStartRecording: () => void;
   onPauseRecording: () => void;
   onResumeRecording: () => void;
@@ -27,6 +31,7 @@ export default function RecordingControls({
   recordingStatus,
   isProcessing,
   recordingDuration,
+  audioDurationSeconds,
   onStartRecording,
   onPauseRecording,
   onResumeRecording,
@@ -34,13 +39,24 @@ export default function RecordingControls({
   onStopRecording,
 }: RecordingControlsProps) {
   const audioLevels = useAudioLevels(recordingStatus);
+  const progress = useTranscriptionProgress(isProcessing, audioDurationSeconds);
+  const displayData = prepareProgressDisplay(progress, formatHumanReadableDuration);
 
   if (isProcessing) {
     return (
       <div className="recording-controls">
+        {displayData.shouldDisplay && (
+          <div className="transcription-estimate">
+            <div className="estimate-text">Estimated: {displayData.estimatedText}</div>
+            {displayData.remainingText && (
+              <div className="estimate-remaining">{displayData.remainingText}</div>
+            )}
+            <ProgressBar percent={displayData.progressPercent} height={4} />
+          </div>
+        )}
         <Button variant="warning" disabled className="btn-pulse">
           <span className="spinner-icon">⟳</span>
-          Processing...
+          Transcribing...
         </Button>
       </div>
     );

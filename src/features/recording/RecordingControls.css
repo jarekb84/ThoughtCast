@@ -55,6 +55,27 @@
   }
 }
 
+/* Transcription estimate - transparent, compact display to left of button */
+.transcription-estimate {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  min-width: 180px;
+  background-color: transparent;
+}
+
+.estimate-text {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.estimate-remaining {
+  font-size: var(--font-size-xs);
+  font-style: italic;
+  color: var(--color-text-tertiary);
+}
+
 /* Responsive adjustments */
 @media (max-width: 480px) {
   .recording-buttons {

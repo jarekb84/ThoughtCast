@@ -4,6 +4,7 @@ mod config;
 mod models;
 mod session;
 mod state;
+mod statistics;
 mod transcription;
 mod utils;
 
@@ -32,6 +33,9 @@ pub use utils::{copy_to_clipboard, get_storage_dir};
 
 // Audio level calculation
 pub use audio::get_audio_levels;
+
+// Transcription statistics and estimation
+pub use statistics::{estimate_transcription_time, extract_transcription_stats, TranscriptionEstimate};
 
 // Note: Internal modules (audio, transcription) are kept private
 // They are implementation details and should not be accessed directly from outside

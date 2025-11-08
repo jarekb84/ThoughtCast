@@ -36,3 +36,34 @@ export interface WhisperConfig {
   /** Optional custom directory for voice notes */
   voiceNotesDir?: string;
 }
+
+/**
+ * Confidence level for transcription time estimates
+ */
+export type EstimateConfidence = 'none' | 'low' | 'medium' | 'high';
+
+/**
+ * Estimated transcription time based on historical data
+ */
+export interface TranscriptionEstimate {
+  /** Estimated transcription time in seconds */
+  estimatedSeconds: number;
+  /** Confidence level based on available historical data */
+  confidence: EstimateConfidence;
+}
+
+/**
+ * Progress data for ongoing transcription
+ */
+export interface TranscriptionProgress {
+  /** Estimated total seconds for transcription (null if no estimate available) */
+  estimatedSeconds: number | null;
+  /** Elapsed seconds since transcription started */
+  elapsedSeconds: number;
+  /** Progress percentage (0-100) */
+  progressPercent: number;
+  /** Whether an estimate is available */
+  hasEstimate: boolean;
+  /** Remaining seconds (estimated - elapsed) */
+  remainingSeconds: number | null;
+}
