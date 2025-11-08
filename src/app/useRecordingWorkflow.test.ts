@@ -233,6 +233,7 @@ describe('useRecordingWorkflow', () => {
           recordingService: mockRecordingService as any,
           clipboardService: mockClipboardService as any,
           transcriptService: mockTranscriptService as any,
+          transcriptionStatsService: {} as any,
         },
       }
     );

@@ -5,6 +5,10 @@ export type {
   TranscriptionCompleteEvent,
   TranscriptionErrorEvent,
 } from './TranscriptionEvents';
+export type {
+  TranscriptionEstimate,
+  TranscriptionProgress,
+} from '../features/sessions/types';
 export { ApiError } from './ApiError';
 
 // Service Interfaces
@@ -12,7 +16,8 @@ export type {
   ISessionService,
   IRecordingService,
   ITranscriptService,
-  IClipboardService
+  IClipboardService,
+  ITranscriptionStatsService,
 } from './services';
 
 // Tauri Implementations
@@ -20,7 +25,8 @@ export {
   TauriSessionService,
   TauriRecordingService,
   TauriTranscriptService,
-  TauriClipboardService
+  TauriClipboardService,
+  TauriTranscriptionStatsService,
 } from './services';
 
 // Mock Implementations
@@ -28,7 +34,8 @@ export {
   MockSessionService,
   MockRecordingService,
   MockTranscriptService,
-  MockClipboardService
+  MockClipboardService,
+  MockTranscriptionStatsService,
 } from './services';
 
 // Context and Hooks

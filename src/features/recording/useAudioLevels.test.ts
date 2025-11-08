@@ -32,6 +32,7 @@ describe("useAudioLevels", () => {
           sessionService: undefined as any,
           transcriptService: undefined as any,
           clipboardService: undefined as any,
+          transcriptionStatsService: {} as any,
         },
       }
     );

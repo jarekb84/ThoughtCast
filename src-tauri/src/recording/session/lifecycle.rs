@@ -6,6 +6,7 @@ use crate::recording::transcription::transcribe_with_whisper;
 use crate::recording::utils::{copy_to_clipboard, get_storage_dir};
 use chrono::Utc;
 use std::thread;
+use std::time::Instant;
 
 /// Start a new recording session
 ///
@@ -133,6 +134,8 @@ pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
         preview: "Processing...".to_string(),
         transcript_path: String::new(),
         clipboard_copied: false,
+        transcription_time_seconds: None,
+        model_path: None,
     };
 
     // Persist initial session to index
@@ -195,6 +198,7 @@ pub enum TranscriptionResult {
 /// 1. Transcribes audio (if configured)
 /// 2. Copies transcript to clipboard (if successful)
 /// 3. Updates session record with transcription results
+/// 4. Records transcription timing statistics for future estimates
 ///
 /// Returns updated session on success, or error message on failure
 pub fn process_transcription_async(
@@ -203,12 +207,28 @@ pub fn process_transcription_async(
 ) -> Result<Session, String> {
     use crate::recording::session::storage::{load_sessions, save_sessions};
 
+    // Load sessions to get audio duration before transcription
+    let mut index = load_sessions()?;
+    let audio_duration = index
+        .sessions
+        .iter()
+        .find(|s| s.id == session_id)
+        .map(|s| s.duration)
+        .unwrap_or(0.0);
+
+    // Time the transcription process
+    let transcription_start = Instant::now();
+
     // Attempt transcription
     let (transcript_path, preview, clipboard_copied) =
         process_transcription(&audio_path, &session_id);
 
-    // Load sessions to update
-    let mut index = load_sessions()?;
+    let transcription_elapsed = transcription_start.elapsed().as_secs_f64();
+
+    // Get model path for tracking
+    let model_path = crate::recording::load_config()
+        .ok()
+        .map(|config| config.model_path);
 
     // Find and update the session
     let updated_session = {
@@ -218,9 +238,15 @@ pub fn process_transcription_async(
             .find(|s| s.id == session_id)
             .ok_or_else(|| format!("Session not found: {}", session_id))?;
 
-        session.transcript_path = transcript_path;
+        session.transcript_path = transcript_path.clone();
         session.preview = preview;
         session.clipboard_copied = clipboard_copied;
+
+        // Store transcription metadata for progress estimation
+        if !transcript_path.is_empty() && audio_duration > 0.0 {
+            session.transcription_time_seconds = Some(transcription_elapsed);
+            session.model_path = model_path;
+        }
 
         session.clone()
     };
@@ -333,12 +359,31 @@ pub fn retranscribe_session(session_id: &str) -> Result<String, String> {
         return Err(format!("Audio file not found: {}", audio_path.display()));
     }
 
+    // Get audio duration for metadata
+    let audio_duration = session.duration;
+
+    // Time the transcription process
+    let transcription_start = Instant::now();
+
     // Run transcription
     let (transcript_path, transcript_text) = transcribe_with_whisper(&audio_path, session_id)?;
 
+    let transcription_elapsed = transcription_start.elapsed().as_secs_f64();
+
+    // Get model path for tracking
+    let model_path = crate::recording::load_config()
+        .ok()
+        .map(|config| config.model_path);
+
     // Update session with new transcript info
-    session.transcript_path = transcript_path;
+    session.transcript_path = transcript_path.clone();
     session.preview = generate_preview(&transcript_text);
+
+    // Store transcription metadata for progress estimation
+    if !transcript_path.is_empty() && audio_duration > 0.0 {
+        session.transcription_time_seconds = Some(transcription_elapsed);
+        session.model_path = model_path;
+    }
 
     // Save updated sessions
     save_sessions(&index)?;

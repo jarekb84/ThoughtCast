@@ -98,6 +98,8 @@ mod tests {
             preview: format!("Preview for {}", id),
             transcript_path: format!("text/{}.txt", id),
             clipboard_copied: false,
+            transcription_time_seconds: None,
+            model_path: None,
         }
     }
 
@@ -208,6 +210,8 @@ mod tests {
             preview: "Complete preview text".to_string(),
             transcript_path: "text/full-session.txt".to_string(),
             clipboard_copied: true,
+            transcription_time_seconds: Some(18.5),
+            model_path: Some("/path/to/model.bin".to_string()),
         };
 
         let json = serde_json::to_string(&session).unwrap();

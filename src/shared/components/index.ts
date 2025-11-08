@@ -10,3 +10,5 @@ export type { ButtonVariant } from "./Button";
 export { default as Card } from "./Card";
 
 export { default as InfoRow } from "./InfoRow";
+
+export { ProgressBar } from "./ProgressBar";

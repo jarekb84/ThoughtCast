@@ -139,6 +139,7 @@ describe('useTranscriptViewer', () => {
           clipboardService: mockClipboardService as any,
           sessionService: mockSessionService as any,
           recordingService: mockRecordingService as any,
+          transcriptionStatsService: {} as any,
         },
       }
     );
