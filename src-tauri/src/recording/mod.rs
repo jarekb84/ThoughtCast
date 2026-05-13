@@ -1,5 +1,6 @@
 // Core modules
 mod audio;
+mod compression;
 mod config;
 mod models;
 mod session;
@@ -12,14 +13,21 @@ mod utils;
 
 // Data models
 pub use models::{
-    Session, SessionIndex, TranscriptionCompleteEvent, TranscriptionErrorEvent, WhisperConfig,
+    AppConfig, Session, SessionIndex, TranscriptionCompleteEvent, TranscriptionErrorEvent,
 };
 
 // State management
 pub use state::{RecordingState, RecordingStatus, SharedRecordingState};
 
 // Configuration
-pub use config::load_config;
+pub use config::{load_config, save_config, validate_path, PathKind, PathValidation};
+
+// Compression pipeline
+pub use compression::{
+    collect_storage_stats, new_shared_progress, repair_orphaned_session_references,
+    request_cancel_batch, start_batch_compression, BatchCompleteEvent, BatchEventEmitter,
+    BatchProgress, BatchProgressEvent, SharedBatchProgress, StorageStats,
+};
 
 // Session operations (main API surface)
 pub use session::{

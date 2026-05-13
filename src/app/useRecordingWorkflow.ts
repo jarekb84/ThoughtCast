@@ -4,6 +4,8 @@ import {
   RecordingStatus,
   TranscriptionCompleteEvent,
   TranscriptionErrorEvent,
+  SESSION_AUDIO_COMPRESSED,
+  SessionAudioCompressedPayload,
   useApi,
 } from '../api';
 import { listen } from '@tauri-apps/api/event';
@@ -249,10 +251,23 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
         (event) => handleTranscriptionError(event.payload.session_id, event.payload.error, callbacks)
       );
 
+      // Listen for post-transcription audio compression: the session row's
+      // audio_path changed and we want the UI to refresh that row.
+      const unlistenCompressed = await listen<SessionAudioCompressedPayload>(
+        SESSION_AUDIO_COMPRESSED,
+        (event) => {
+          logger.info(
+            `Session ${event.payload.session_id} compressed; freed ${event.payload.bytes_freed} bytes`
+          );
+          void loadSessions();
+        }
+      );
+
       // Cleanup listeners on unmount
       return () => {
         unlistenComplete();
         unlistenError();
+        unlistenCompressed();
       };
     };
 

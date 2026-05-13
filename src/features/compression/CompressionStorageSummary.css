@@ -1,0 +1,25 @@
+.compression-storage-summary {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.compression-storage-summary strong {
+  display: block;
+  margin-bottom: var(--space-xs);
+  color: var(--color-text-primary);
+}
+
+.compression-storage-summary ul {
+  margin: 0;
+  padding-left: var(--space-lg);
+}
+
+.compression-storage-summary li {
+  line-height: var(--line-height-normal);
+}
+
+.compression-storage-summary-loading {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+}

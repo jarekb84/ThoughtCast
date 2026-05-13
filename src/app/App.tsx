@@ -1,12 +1,22 @@
 import SessionList from "../features/sessions/SessionList";
 import SessionViewer from "../features/sessions/SessionViewer";
+import SettingsPanel from "../features/settings/SettingsPanel";
+import { useSettingsPanel } from "../features/settings/useSettingsPanel";
+import { useCompressionBatch } from "../features/compression/useCompressionBatch";
+import CompressionProgressDialog from "../features/compression/CompressionProgressDialog";
+import CompressionCompletionToast from "../features/compression/CompressionCompletionToast";
+import CompressionStorageSummary from "../features/compression/CompressionStorageSummary";
 import { useRecordingWorkflow } from "./useRecordingWorkflow";
 import { useAppVersion } from "./useAppVersion";
+import { useState } from "react";
 import "./App.css";
 
 function App() {
-  // Set app version in window title
   useAppVersion();
+
+  const settingsPanel = useSettingsPanel();
+  const compressionBatch = useCompressionBatch();
+  const [progressDialogHidden, setProgressDialogHidden] = useState(false);
 
   const {
     sessions,
@@ -22,8 +32,16 @@ function App() {
     handleCancelRecording,
     handleStopRecording,
     setSelectedId,
-    loadSessions
+    loadSessions,
   } = useRecordingWorkflow();
+
+  const handleCompressNow = async () => {
+    // Manual button always compresses every uncompressed WAV. The configured
+    // age threshold only governs the automatic startup sweep — see
+    // `start_batch_compression` in the Rust side.
+    setProgressDialogHidden(false);
+    await compressionBatch.start({ ignoreThreshold: true });
+  };
 
   return (
     <div className="app">
@@ -45,6 +63,48 @@ function App() {
         onStopRecording={handleStopRecording}
         onSessionsChanged={loadSessions}
       />
+      <SettingsPanel
+        isOpen={settingsPanel.isOpen}
+        onClose={() => {
+          settingsPanel.close();
+          void compressionBatch.refreshStorage();
+        }}
+        renderCompressionExtras={(form) => ({
+          onCompressNow: form.draft.ffmpegPath ? handleCompressNow : undefined,
+          compressNowDisabledReason: compressionBatch.getCompressNowDisabledReason(
+            Boolean(form.draft.ffmpegPath)
+          ),
+          storageSummary: (
+            <CompressionStorageSummary stats={compressionBatch.storage} />
+          ),
+        })}
+      />
+      {/*
+        Gate on `total > 0`, not just `isRunning`: the backend flips to
+        Running synchronously before the worker thread has decided whether
+        anything is eligible. Without this gate, a startup auto-sweep (or a
+        manual press with no eligible files) briefly flashes a "0 of 0"
+        dialog. With it, the dialog only appears once the worker has actual
+        work queued up.
+      */}
+      {compressionBatch.isRunning &&
+        compressionBatch.progress.total > 0 &&
+        !progressDialogHidden && (
+          <CompressionProgressDialog
+            progress={compressionBatch.progress}
+            onRunInBackground={() => setProgressDialogHidden(true)}
+            onCancel={compressionBatch.cancel}
+          />
+        )}
+      {compressionBatch.lastCompletion && (
+        <CompressionCompletionToast
+          summary={compressionBatch.lastCompletion}
+          onDismiss={() => {
+            compressionBatch.dismissCompletion();
+            void loadSessions();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -11,6 +11,14 @@ import {
   TauriClipboardService,
   TauriTranscriptionStatsService,
 } from './services';
+import {
+  ISettingsService,
+  TauriSettingsService,
+} from '../features/settings/SettingsService';
+import {
+  ICompressionService,
+  TauriCompressionService,
+} from '../features/compression/CompressionService';
 
 /**
  * API services available to the application
@@ -21,6 +29,8 @@ export interface ApiServices {
   transcriptService: ITranscriptService;
   clipboardService: IClipboardService;
   transcriptionStatsService: ITranscriptionStatsService;
+  settingsService: ISettingsService;
+  compressionService: ICompressionService;
 }
 
 /**
@@ -66,6 +76,8 @@ export function ApiProvider({ children, services }: ApiProviderProps) {
       transcriptService: new TauriTranscriptService(),
       clipboardService: new TauriClipboardService(),
       transcriptionStatsService: new TauriTranscriptionStatsService(),
+      settingsService: new TauriSettingsService(),
+      compressionService: new TauriCompressionService(),
     }),
     []
   );

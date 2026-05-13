@@ -1,26 +1,18 @@
-use crate::recording::models::WhisperConfig;
+use crate::recording::models::AppConfig;
 use crate::recording::utils::get_storage_dir;
 use std::fs;
 
-/// Load the Whisper configuration from the config.json file
+/// Load the application configuration from `config.json`.
 ///
-/// Returns an error with helpful setup instructions if the config file
-/// doesn't exist or can't be parsed
-pub fn load_config() -> Result<WhisperConfig, String> {
+/// Returns `AppConfig::default()` if the file does not exist yet (fresh install
+/// or pre-Settings-panel migration). Older configs with only whisperPath/modelPath
+/// keep working — newly added fields fall back to defaults.
+pub fn load_config() -> Result<AppConfig, String> {
     let storage_dir = get_storage_dir()?;
     let config_file = storage_dir.join("config.json");
 
     if !config_file.exists() {
-        return Err(format!(
-            "Whisper.cpp is not set up. Please create config.json at: {}\n\
-            See README for setup instructions.\n\
-            Example content:\n\
-            {{\n\
-              \"whisperPath\": \"C:\\\\whisper\\\\whisper.exe\",\n\
-              \"modelPath\": \"C:\\\\whisper\\\\models\\\\ggml-base.bin\"\n\
-            }}",
-            config_file.display()
-        ));
+        return Ok(AppConfig::default());
     }
 
     let content = fs::read_to_string(&config_file)
@@ -32,7 +24,7 @@ pub fn load_config() -> Result<WhisperConfig, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::recording::models::AppConfig;
 
     #[test]
     fn test_parse_valid_config() {
@@ -41,13 +33,11 @@ mod tests {
             "modelPath": "/models/ggml-base.bin"
         }"#;
 
-        let config: Result<WhisperConfig, _> = serde_json::from_str(json);
-        assert!(config.is_ok());
-
-        let config = config.unwrap();
+        let config: AppConfig = serde_json::from_str(json).expect("should parse");
         assert_eq!(config.whisper_path, "/usr/local/bin/whisper-cli");
         assert_eq!(config.model_path, "/models/ggml-base.bin");
         assert_eq!(config.voice_notes_dir, None);
+        assert_eq!(config.ffmpeg_path, "");
     }
 
     #[test]
@@ -58,10 +48,7 @@ mod tests {
             "voiceNotesDir": "/custom/notes"
         }"#;
 
-        let config: Result<WhisperConfig, _> = serde_json::from_str(json);
-        assert!(config.is_ok());
-
-        let config = config.unwrap();
+        let config: AppConfig = serde_json::from_str(json).expect("should parse");
         assert_eq!(config.voice_notes_dir, Some("/custom/notes".to_string()));
     }
 
@@ -72,18 +59,21 @@ mod tests {
             "modelPath": "/models/ggml-base.bin"
         }"#;
 
-        let config: Result<WhisperConfig, _> = serde_json::from_str(json);
-        assert!(config.is_err());
+        let result: Result<AppConfig, _> = serde_json::from_str(json);
+        assert!(result.is_err());
     }
 
     #[test]
-    fn test_parse_missing_required_fields() {
+    fn test_parse_partial_config_uses_defaults() {
+        // Missing required-looking fields default to empty strings now —
+        // validation happens at the call site (Settings panel), not at load time.
         let json = r#"{
             "whisperPath": "/usr/local/bin/whisper-cli"
         }"#;
 
-        let config: Result<WhisperConfig, _> = serde_json::from_str(json);
-        assert!(config.is_err());
+        let config: AppConfig = serde_json::from_str(json).expect("should parse");
+        assert_eq!(config.whisper_path, "/usr/local/bin/whisper-cli");
+        assert_eq!(config.model_path, "");
     }
 
     #[test]
@@ -93,10 +83,7 @@ mod tests {
             "modelPath": "C:\\whisper\\models\\ggml-base.bin"
         }"#;
 
-        let config: Result<WhisperConfig, _> = serde_json::from_str(json);
-        assert!(config.is_ok());
-
-        let config = config.unwrap();
+        let config: AppConfig = serde_json::from_str(json).expect("should parse");
         assert_eq!(config.whisper_path, "C:\\whisper\\whisper.exe");
         assert_eq!(config.model_path, "C:\\whisper\\models\\ggml-base.bin");
     }
@@ -109,7 +96,7 @@ mod tests {
             "extraField": "should be ignored"
         }"#;
 
-        let config: Result<WhisperConfig, _> = serde_json::from_str(json);
-        assert!(config.is_ok());
+        let result: Result<AppConfig, _> = serde_json::from_str(json);
+        assert!(result.is_ok());
     }
 }

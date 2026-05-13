@@ -15,13 +15,19 @@ pub enum RecordingStatus {
 /// The state of an active recording session
 ///
 /// Manages the recording status, audio samples buffer, and timing information
-/// including support for pause/resume functionality
+/// including support for pause/resume functionality.
+///
+/// `active_session_id` and `transcribing_session_ids` exist so the compression
+/// worker can skip files that are mid-recording or mid-transcription. They
+/// are populated by the session lifecycle and cleared on idle.
 pub struct RecordingState {
     pub status: RecordingStatus,
     pub samples: Arc<Mutex<Vec<f32>>>,
     pub start_time: Option<DateTime<Utc>>,
     pub pause_start_time: Option<DateTime<Utc>>,
     pub total_paused_duration_ms: i64,
+    pub active_session_id: Option<String>,
+    pub transcribing_session_ids: std::collections::HashSet<String>,
 }
 
 impl RecordingState {
@@ -32,6 +38,8 @@ impl RecordingState {
             start_time: None,
             pause_start_time: None,
             total_paused_duration_ms: 0,
+            active_session_id: None,
+            transcribing_session_ids: std::collections::HashSet::new(),
         }
     }
 
