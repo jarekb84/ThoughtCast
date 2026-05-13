@@ -1,0 +1,67 @@
+.compression-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0;
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.compression-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.compression-age-row {
+  display: flex;
+  gap: var(--space-xl);
+  padding: var(--space-xs) 0 var(--space-sm) var(--space-2xl);
+}
+
+.compression-age-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.compression-age-option input[type="radio"]:disabled {
+  cursor: not-allowed;
+}
+
+.compression-age-option input[type="radio"]:disabled + span {
+  color: var(--color-text-muted);
+}
+
+.compression-format-note {
+  margin: var(--space-sm) 0 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  font-style: italic;
+}
+
+.compression-storage {
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  background-color: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+}
+
+.compression-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
+}
+
+.compression-actions-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+}

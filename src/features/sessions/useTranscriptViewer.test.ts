@@ -140,6 +140,8 @@ describe('useTranscriptViewer', () => {
           sessionService: mockSessionService as any,
           recordingService: mockRecordingService as any,
           transcriptionStatsService: {} as any,
+          settingsService: {} as any,
+          compressionService: {} as any,
         },
       }
     );

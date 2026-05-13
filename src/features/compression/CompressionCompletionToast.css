@@ -1,0 +1,41 @@
+.compression-toast {
+  position: fixed;
+  bottom: var(--space-xl);
+  right: var(--space-xl);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  background-color: var(--color-success);
+  color: white;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  animation: slideInRight 0.25s ease-out;
+}
+
+.compression-toast-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.compression-toast-text strong {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+}
+
+.compression-toast-text span {
+  font-size: var(--font-size-sm);
+  opacity: 0.9;
+}
+
+.compression-toast .btn-secondary {
+  background-color: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.35);
+  color: white;
+}
+
+.compression-toast .btn-secondary:hover {
+  background-color: rgba(255, 255, 255, 0.28);
+}

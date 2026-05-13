@@ -67,7 +67,6 @@ pub fn add_session(session: Session) -> Result<(), String> {
 }
 
 /// Update an existing session in the index
-#[allow(dead_code)]
 pub fn update_session<F>(session_id: &str, updater: F) -> Result<(), String>
 where
     F: FnOnce(&mut Session),

@@ -5,6 +5,16 @@ export type {
   TranscriptionCompleteEvent,
   TranscriptionErrorEvent,
 } from './TranscriptionEvents';
+export {
+  SESSION_AUDIO_COMPRESSED,
+  COMPRESSION_BATCH_PROGRESS,
+  COMPRESSION_BATCH_COMPLETE,
+} from './CompressionEvents';
+export type {
+  SessionAudioCompressedPayload,
+  CompressionBatchProgressPayload,
+  CompressionBatchCompletePayload,
+} from './CompressionEvents';
 export type {
   TranscriptionEstimate,
   TranscriptionProgress,

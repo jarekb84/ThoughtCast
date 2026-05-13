@@ -1,4 +1,5 @@
 use crate::recording::audio::{start_capture, write_wav_file};
+use crate::recording::compression::{run_post_transcription_compression, SessionAudioCompressedEvent};
 use crate::recording::models::Session;
 use crate::recording::session::storage::add_session;
 use crate::recording::state::{RecordingStatus, SharedRecordingState};
@@ -167,17 +168,52 @@ pub fn orchestrate_async_transcription<F>(
 ) where
     F: Fn(TranscriptionResult) + Send + 'static,
 {
+    // Mark the session as in-flight for transcription before the worker thread
+    // starts so the batch-compression worker won't race it.
+    if let Ok(mut state_guard) = state.lock() {
+        state_guard.transcribing_session_ids.insert(session_id.clone());
+    }
+
     thread::spawn(move || {
         let result = process_transcription_async(audio_path, session_id.clone());
 
         // Update state to idle regardless of success/failure
         if let Ok(mut state_guard) = state.lock() {
             state_guard.status = RecordingStatus::Idle;
+            state_guard.transcribing_session_ids.remove(&session_id);
         }
 
         // Emit event via injected callback
         match result {
-            Ok(session) => event_emitter(TranscriptionResult::Success(session)),
+            Ok(session) => {
+                let audio_path_for_compression = session.audio_path.clone();
+                let session_id_for_compression = session.id.clone();
+                event_emitter(TranscriptionResult::Success(session));
+
+                // Best-effort post-transcription compression. Runs on this same
+                // background thread after the success event has already fired
+                // so the UI gets a transcript first and then a follow-up
+                // compression event if compression was enabled.
+                match run_post_transcription_compression(
+                    &session_id_for_compression,
+                    &audio_path_for_compression,
+                ) {
+                    Ok(Some(compression_event)) => {
+                        event_emitter(TranscriptionResult::Compressed(compression_event));
+                    }
+                    Ok(None) => {
+                        // Compression disabled — nothing to do.
+                    }
+                    Err(e) => {
+                        // Non-fatal: WAV stays put, session row remains valid.
+                        log::warn!(
+                            "Post-transcription compression failed for {}: {}",
+                            session_id_for_compression,
+                            e
+                        );
+                    }
+                }
+            }
             Err(error) => event_emitter(TranscriptionResult::Error {
                 session_id,
                 error,
@@ -189,6 +225,7 @@ pub fn orchestrate_async_transcription<F>(
 /// Result of async transcription for event emission
 pub enum TranscriptionResult {
     Success(Session),
+    Compressed(SessionAudioCompressedEvent),
     Error { session_id: String, error: String },
 }
 
