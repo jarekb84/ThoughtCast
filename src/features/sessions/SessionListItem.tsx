@@ -1,3 +1,4 @@
+import { memo, useCallback } from "react";
 import { Session } from "../../api";
 import { formatShortTimestamp } from "../../shared/formatters/date-time";
 import { formatDuration } from "../../shared/formatters/duration";
@@ -7,26 +8,20 @@ import "./SessionListItem.css";
 interface SessionListItemProps {
   session: Session;
   isSelected: boolean;
-  onSelect: () => void;
+  onSelect: (id: string) => void;
 }
 
-/**
- * L2 SessionListItem Component
- *
- * Renders a single session in the list with subtle selection states
- * and hover effects that follow the design system guidelines.
- */
-export default function SessionListItem({
-  session,
-  isSelected,
-  onSelect,
-}: SessionListItemProps) {
+function SessionListItemImpl({ session, isSelected, onSelect }: SessionListItemProps) {
   const isProcessing = session.preview === "Processing...";
+
+  const handleClick = useCallback(() => {
+    onSelect(session.id);
+  }, [onSelect, session.id]);
 
   return (
     <div
       className={`session-list-item ${isSelected ? "session-list-item-selected" : ""} ${isProcessing ? "session-list-item-processing" : ""}`}
-      onClick={onSelect}
+      onClick={handleClick}
     >
       <div className="session-list-item-header">
         <span className="session-list-item-icon">
@@ -45,3 +40,6 @@ export default function SessionListItem({
     </div>
   );
 }
+
+const SessionListItem = memo(SessionListItemImpl);
+export default SessionListItem;

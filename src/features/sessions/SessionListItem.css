@@ -9,7 +9,12 @@
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: all var(--transition-base);
+  /* Specific transitions instead of `all` — the WebView compositor was
+     monitoring every property on 1400 list items, dominating GPU during
+     recording when the parent re-renders at 10 Hz. */
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base);
 }
 
 /* Unselected hover state - subtle */

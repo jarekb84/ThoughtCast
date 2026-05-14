@@ -106,7 +106,7 @@ export default function RecordingControls({
           ✕ Cancel
         </Button>
 
-        <Button variant="danger" onClick={onStopRecording} className="btn-pulse">
+        <Button variant="danger" onClick={onStopRecording}>
           ■ Stop
         </Button>
       </div>

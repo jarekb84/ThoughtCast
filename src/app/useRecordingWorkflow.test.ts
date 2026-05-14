@@ -422,12 +422,15 @@ describe('useRecordingWorkflow', () => {
 
     expect(result.current.recordingStatus).toBe('recording');
 
-    // Wait for the interval to trigger (runs every 100ms)
-    // Using waitFor with real timers is more reliable than fake timers
-    await waitFor(() => {
-      expect(mockRecordingService.getRecordingDuration).toHaveBeenCalled();
-      expect(result.current.recordingDuration).toBe(5.5);
-    });
+    // Wait for the interval to trigger (runs every 500ms).
+    // Using waitFor with real timers is more reliable than fake timers.
+    await waitFor(
+      () => {
+        expect(mockRecordingService.getRecordingDuration).toHaveBeenCalled();
+        expect(result.current.recordingDuration).toBe(5.5);
+      },
+      { timeout: 2000 }
+    );
   });
 
   it('should allow manual session selection', async () => {
