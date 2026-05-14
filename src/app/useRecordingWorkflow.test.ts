@@ -236,6 +236,8 @@ describe('useRecordingWorkflow', () => {
           transcriptionStatsService: {} as any,
           settingsService: {} as any,
           compressionService: {} as any,
+          audioCueService: { playCue: vi.fn().mockResolvedValue(undefined) } as any,
+          keyboardShortcutsService: {} as any,
         },
       }
     );

@@ -10,7 +10,16 @@ export type { ISettingsService } from "./SettingsService";
 export type {
   AppConfig,
   AudioCompressionConfig,
+  AudioFeedbackConfig,
+  AudioFileValidation,
+  CueType,
+  KeyboardShortcutsConfig,
   PathKind,
   PathValidation,
+  TriggerMode,
 } from "./appConfig";
-export { DEFAULT_APP_CONFIG, COMPRESSION_AGE_OPTIONS } from "./appConfig";
+export {
+  DEFAULT_APP_CONFIG,
+  COMPRESSION_AGE_OPTIONS,
+  PUSH_TO_TALK_MIN_HOLD_MS,
+} from "./appConfig";

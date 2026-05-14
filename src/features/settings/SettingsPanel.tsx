@@ -1,14 +1,35 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "../../shared/components";
 import { useSettingsForm } from "./useSettingsForm";
 import TranscriptionSettingsSection from "./sections/TranscriptionSettingsSection";
 import CompressionSettingsSection from "./sections/CompressionSettingsSection";
+import KeyboardShortcutsSection from "./sections/KeyboardShortcutsSection";
+import AudioFeedbackSection from "./sections/AudioFeedbackSection";
+import SettingsTabsNav, { SettingsTab } from "./tabs/SettingsTabsNav";
+import type { RecordingStatus } from "../../api";
 import "./SettingsPanel.css";
+
+type SettingsTabKey =
+  | "keyboard-shortcuts"
+  | "audio-feedback"
+  | "audio-compression"
+  | "transcription";
+
+const TABS: ReadonlyArray<SettingsTab<SettingsTabKey>> = [
+  { key: "keyboard-shortcuts", label: "Keyboard Shortcuts" },
+  { key: "audio-feedback", label: "Audio Feedback" },
+  { key: "audio-compression", label: "Audio Compression" },
+  { key: "transcription", label: "Transcription" },
+];
 
 interface SettingsPanelProps {
   isOpen: boolean;
   onClose: () => void;
-  /** Optional slot for Phase D's compression batch UI (storage stats + Compress Now). */
+  /** Hoisted form so saved-config consumers (e.g. the global-shortcut hook in
+   *  App.tsx) read the same state the panel writes. */
+  form: ReturnType<typeof useSettingsForm>;
+  recordingStatus: RecordingStatus;
+  /** Optional slot for the compression batch's "Compress Now" wiring. */
   renderCompressionExtras?: (
     form: ReturnType<typeof useSettingsForm>
   ) => {
@@ -19,30 +40,46 @@ interface SettingsPanelProps {
 }
 
 /**
- * Settings panel modal — host for all in-app configuration sections.
+ * Settings panel — host for all in-app configuration sections.
  *
- * The panel itself is dumb chrome: it owns the open/close lifecycle and the
- * Save/Cancel bar. Each settings *section* is a self-contained component that
- * subscribes to the shared `useSettingsForm` handle. To add a new section,
- * drop a new `<*SettingsSection form={form} />` inside `.settings-panel-body`.
+ * The panel owns chrome (modal lifecycle, Save/Cancel bar, tab navigation),
+ * but each settings *section* is a self-contained component that subscribes
+ * to a shared `useSettingsForm` handle owned by the parent. Hoisting the form
+ * lets the rest of the app (global hotkey hook, audio cue dispatchers) read
+ * the same baseline the user just saved without a second backend round-trip.
  */
 export default function SettingsPanel({
   isOpen,
   onClose,
+  form,
+  recordingStatus,
   renderCompressionExtras,
 }: SettingsPanelProps) {
-  const form = useSettingsForm();
+  const [activeTab, setActiveTab] = useState<SettingsTabKey>(
+    "keyboard-shortcuts"
+  );
   const [pendingDiscard, setPendingDiscard] = useState(false);
+
+  // Read isDirty through a ref inside the listener so the (re-bound on every
+  // render) close handler always sees the latest value without needing
+  // exhaustive deps on `form`. Keeps the effect's lifecycle gated purely on
+  // `isOpen` — the listener is mounted once per open/close cycle.
+  const isDirtyRef = useRef(form.isDirty);
+  isDirtyRef.current = form.isDirty;
 
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") handleRequestClose();
+      if (e.key !== "Escape") return;
+      if (isDirtyRef.current) {
+        setPendingDiscard(true);
+        return;
+      }
+      onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, form.isDirty]);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -89,22 +126,26 @@ export default function SettingsPanel({
           </button>
         </header>
 
-        <div className="settings-panel-body">
-          {form.isLoading ? (
-            <p className="settings-loading">Loading settings…</p>
-          ) : form.loadError ? (
-            <p className="settings-error">⚠ {form.loadError}</p>
-          ) : (
-            <>
-              <TranscriptionSettingsSection form={form} />
-              <CompressionSettingsSection
+        <div className="settings-panel-tabbed-body">
+          <SettingsTabsNav<SettingsTabKey>
+            tabs={TABS}
+            activeKey={activeTab}
+            onSelect={setActiveTab}
+          />
+          <div className="settings-panel-body">
+            {form.isLoading ? (
+              <p className="settings-loading">Loading settings…</p>
+            ) : form.loadError ? (
+              <p className="settings-error">⚠ {form.loadError}</p>
+            ) : (
+              <ActiveTabContent
+                activeTab={activeTab}
                 form={form}
-                onCompressNow={extras.onCompressNow}
-                compressNowDisabledReason={extras.compressNowDisabledReason}
-                storageSummary={extras.storageSummary}
+                recordingStatus={recordingStatus}
+                extras={extras}
               />
-            </>
-          )}
+            )}
+          </div>
         </div>
 
         <footer className="settings-panel-footer">
@@ -148,4 +189,45 @@ export default function SettingsPanel({
       </div>
     </div>
   );
+}
+
+interface ActiveTabContentProps {
+  activeTab: SettingsTabKey;
+  form: ReturnType<typeof useSettingsForm>;
+  recordingStatus: RecordingStatus;
+  extras: {
+    onCompressNow?: () => void;
+    compressNowDisabledReason?: string;
+    storageSummary?: React.ReactNode;
+  };
+}
+
+function ActiveTabContent({
+  activeTab,
+  form,
+  recordingStatus,
+  extras,
+}: ActiveTabContentProps) {
+  switch (activeTab) {
+    case "keyboard-shortcuts":
+      return (
+        <KeyboardShortcutsSection
+          form={form}
+          recordingStatus={recordingStatus}
+        />
+      );
+    case "audio-feedback":
+      return <AudioFeedbackSection form={form} />;
+    case "audio-compression":
+      return (
+        <CompressionSettingsSection
+          form={form}
+          onCompressNow={extras.onCompressNow}
+          compressNowDisabledReason={extras.compressNowDisabledReason}
+          storageSummary={extras.storageSummary}
+        />
+      );
+    case "transcription":
+      return <TranscriptionSettingsSection form={form} />;
+  }
 }

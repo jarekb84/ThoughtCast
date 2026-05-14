@@ -13,7 +13,8 @@ mod utils;
 
 // Data models
 pub use models::{
-    AppConfig, Session, SessionIndex, TranscriptionCompleteEvent, TranscriptionErrorEvent,
+    AppConfig, AudioFeedbackConfig, Session, SessionIndex, TranscriptionCompleteEvent,
+    TranscriptionErrorEvent,
 };
 
 // State management

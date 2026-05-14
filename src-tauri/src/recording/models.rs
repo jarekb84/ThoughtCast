@@ -58,11 +58,98 @@ impl Default for AudioCompressionConfig {
     }
 }
 
+/// How a press of the record shortcut behaves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TriggerMode {
+    /// Press once to start, press again to stop.
+    Toggle,
+    /// Hold to record, release to stop.
+    PushToTalk,
+}
+
+impl Default for TriggerMode {
+    fn default() -> Self {
+        TriggerMode::Toggle
+    }
+}
+
+/// Global keyboard shortcut configuration, persisted under `keyboardShortcuts` in config.json.
+///
+/// Both shortcuts are Tauri-global-shortcut accelerator strings (e.g. `"F1"`,
+/// `"CommandOrControl+Shift+R"`), parsed by `Shortcut::from_str`. The cancel
+/// shortcut is only registered while a recording is active, so the default
+/// `"Escape"` does not interfere with text inputs on the OS when idle.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KeyboardShortcutsConfig {
+    #[serde(rename = "recordShortcut", default = "default_record_shortcut")]
+    pub record_shortcut: String,
+    #[serde(rename = "cancelShortcut", default = "default_cancel_shortcut")]
+    pub cancel_shortcut: String,
+    #[serde(rename = "triggerMode", default)]
+    pub trigger_mode: TriggerMode,
+}
+
+fn default_record_shortcut() -> String {
+    "F1".to_string()
+}
+
+fn default_cancel_shortcut() -> String {
+    "Escape".to_string()
+}
+
+impl Default for KeyboardShortcutsConfig {
+    fn default() -> Self {
+        Self {
+            record_shortcut: default_record_shortcut(),
+            cancel_shortcut: default_cancel_shortcut(),
+            trigger_mode: TriggerMode::default(),
+        }
+    }
+}
+
+/// Audio feedback (cue) configuration, persisted under `audioFeedback` in config.json.
+///
+/// Empty `*_cue_path` strings mean "use the bundled default at
+/// `<documents>/ThoughtCast/sounds/<cue>.wav`" — resolved at playback time.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AudioFeedbackConfig {
+    #[serde(rename = "enabled", default = "default_audio_feedback_enabled")]
+    pub enabled: bool,
+    #[serde(rename = "volume", default = "default_audio_feedback_volume")]
+    pub volume: f32,
+    #[serde(rename = "startCuePath", default)]
+    pub start_cue_path: String,
+    #[serde(rename = "stopCuePath", default)]
+    pub stop_cue_path: String,
+    #[serde(rename = "readyCuePath", default)]
+    pub ready_cue_path: String,
+}
+
+fn default_audio_feedback_enabled() -> bool {
+    true
+}
+
+fn default_audio_feedback_volume() -> f32 {
+    0.7
+}
+
+impl Default for AudioFeedbackConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_audio_feedback_enabled(),
+            volume: default_audio_feedback_volume(),
+            start_cue_path: String::new(),
+            stop_cue_path: String::new(),
+            ready_cue_path: String::new(),
+        }
+    }
+}
+
 /// Persisted application configuration
 ///
 /// Loaded from / saved to `~/Documents/ThoughtCast/config.json`. New fields
-/// (ffmpegPath, audioCompression) default sensibly so older config files keep
-/// working without manual migration.
+/// default sensibly so older config files keep working without manual migration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     #[serde(rename = "whisperPath", default)]
@@ -75,6 +162,10 @@ pub struct AppConfig {
     pub ffmpeg_path: String,
     #[serde(rename = "audioCompression", default)]
     pub audio_compression: AudioCompressionConfig,
+    #[serde(rename = "keyboardShortcuts", default)]
+    pub keyboard_shortcuts: KeyboardShortcutsConfig,
+    #[serde(rename = "audioFeedback", default)]
+    pub audio_feedback: AudioFeedbackConfig,
 }
 
 impl Default for AppConfig {
@@ -85,6 +176,8 @@ impl Default for AppConfig {
             voice_notes_dir: None,
             ffmpeg_path: String::new(),
             audio_compression: AudioCompressionConfig::default(),
+            keyboard_shortcuts: KeyboardShortcutsConfig::default(),
+            audio_feedback: AudioFeedbackConfig::default(),
         }
     }
 }
@@ -210,6 +303,7 @@ mod tests {
                 compress_old_recordings_enabled: true,
                 compress_old_recordings_older_than_days: 30,
             },
+            ..AppConfig::default()
         };
 
         let json = serde_json::to_string(&config).unwrap();
@@ -299,5 +393,54 @@ mod tests {
                 .compress_old_recordings_older_than_days,
             7
         );
+        assert_eq!(config.keyboard_shortcuts.record_shortcut, "F1");
+        assert_eq!(config.keyboard_shortcuts.cancel_shortcut, "Escape");
+        assert_eq!(config.keyboard_shortcuts.trigger_mode, TriggerMode::Toggle);
+        assert!(config.audio_feedback.enabled);
+        assert!((config.audio_feedback.volume - 0.7).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_keyboard_shortcuts_and_audio_feedback_round_trip() {
+        let config = AppConfig {
+            keyboard_shortcuts: KeyboardShortcutsConfig {
+                record_shortcut: "CommandOrControl+Shift+R".to_string(),
+                cancel_shortcut: "Alt+X".to_string(),
+                trigger_mode: TriggerMode::PushToTalk,
+            },
+            audio_feedback: AudioFeedbackConfig {
+                enabled: false,
+                volume: 0.25,
+                start_cue_path: "/custom/start.wav".to_string(),
+                stop_cue_path: String::new(),
+                ready_cue_path: "/custom/ready.ogg".to_string(),
+            },
+            ..AppConfig::default()
+        };
+
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: AppConfig = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(
+            parsed.keyboard_shortcuts.record_shortcut,
+            "CommandOrControl+Shift+R"
+        );
+        assert_eq!(parsed.keyboard_shortcuts.cancel_shortcut, "Alt+X");
+        assert_eq!(
+            parsed.keyboard_shortcuts.trigger_mode,
+            TriggerMode::PushToTalk
+        );
+        assert!(!parsed.audio_feedback.enabled);
+        assert!((parsed.audio_feedback.volume - 0.25).abs() < f32::EPSILON);
+        assert_eq!(parsed.audio_feedback.start_cue_path, "/custom/start.wav");
+        assert_eq!(parsed.audio_feedback.stop_cue_path, "");
+    }
+
+    #[test]
+    fn test_trigger_mode_serialization_uses_kebab_case() {
+        let toggle_json = serde_json::to_string(&TriggerMode::Toggle).unwrap();
+        let ptt_json = serde_json::to_string(&TriggerMode::PushToTalk).unwrap();
+        assert_eq!(toggle_json, "\"toggle\"");
+        assert_eq!(ptt_json, "\"push-to-talk\"");
     }
 }

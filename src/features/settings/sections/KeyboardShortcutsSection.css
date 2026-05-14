@@ -1,0 +1,106 @@
+.shortcut-disabled-notice {
+  padding: var(--space-md);
+  background-color: var(--color-warning-bg, var(--color-neutral-bg));
+  border: 1px solid var(--color-neutral-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-md);
+}
+
+.shortcut-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-lg);
+}
+
+.shortcut-label {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.shortcut-row {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.shortcut-input {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-md);
+  background-color: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+}
+
+.shortcut-input:disabled {
+  color: var(--color-text-disabled);
+  background-color: var(--color-bg-tertiary);
+}
+
+.shortcut-hint {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  line-height: var(--line-height-normal);
+}
+
+.shortcut-fieldset {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin: var(--space-lg) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.shortcut-fieldset:disabled .shortcut-radio {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.shortcut-legend {
+  padding: 0 var(--space-xs);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.shortcut-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  line-height: var(--line-height-normal);
+}
+
+.shortcut-radio input {
+  margin-top: 3px;
+}
+
+.shortcut-fixed-note {
+  margin: var(--space-md) 0 0;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background-color: var(--color-bg-tertiary);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.shortcut-fixed-note kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--color-border-dark);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-bg-primary);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+}

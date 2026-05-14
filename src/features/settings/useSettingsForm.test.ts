@@ -25,6 +25,8 @@ function makeWrapper(settingsService: MockSettingsService) {
           transcriptionStatsService: {} as never,
           settingsService,
           compressionService: {} as never,
+          audioCueService: {} as never,
+          keyboardShortcutsService: {} as never,
         },
       }
     );
