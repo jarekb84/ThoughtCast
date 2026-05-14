@@ -170,7 +170,13 @@ export default function SessionViewer({
                     {displayData.shouldDisplay ? (
                       <>
                         <span>
-                          Transcribing... {displayData.estimatedText} estimated
+                          Transcribing...
+                          {displayData.chunkLabel && (
+                            <> {displayData.chunkLabel}</>
+                          )}
+                          {displayData.estimatedText && (
+                            <> {displayData.estimatedText} estimated</>
+                          )}
                         </span>
                         {displayData.remainingText && (
                           <span className="remaining-estimate">

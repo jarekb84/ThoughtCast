@@ -36,6 +36,10 @@ export interface SettingsFormActions {
     key: K,
     value: AppConfig["audioCompression"][K]
   ) => void;
+  setChunkingField: <K extends keyof AppConfig["audioChunking"]>(
+    key: K,
+    value: AppConfig["audioChunking"][K]
+  ) => void;
   revalidatePath: (pathField: string, kind: PathKind) => Promise<void>;
   save: () => Promise<{ ok: boolean }>;
   cancel: () => void;
@@ -99,6 +103,19 @@ export function useSettingsForm(): SettingsFormState & SettingsFormActions {
       setDraft((prev) => ({
         ...prev,
         audioCompression: { ...prev.audioCompression, [key]: value },
+      }));
+    },
+    []
+  );
+
+  const setChunkingField = useCallback(
+    <K extends keyof AppConfig["audioChunking"]>(
+      key: K,
+      value: AppConfig["audioChunking"][K]
+    ) => {
+      setDraft((prev) => ({
+        ...prev,
+        audioChunking: { ...prev.audioChunking, [key]: value },
       }));
     },
     []
@@ -182,6 +199,7 @@ export function useSettingsForm(): SettingsFormState & SettingsFormActions {
     pathValidations,
     setField,
     setCompressionField,
+    setChunkingField,
     revalidatePath,
     save,
     cancel,

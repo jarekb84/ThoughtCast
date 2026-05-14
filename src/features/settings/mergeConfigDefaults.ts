@@ -4,6 +4,7 @@ import {
   AudioCompressionConfig,
   AudioFeedbackConfig,
   KeyboardShortcutsConfig,
+  AudioChunkingConfig,
 } from "./appConfig";
 
 /**
@@ -28,6 +29,9 @@ export function mergeConfigDefaults(
   >;
   const feedbackPartial = (partial.audioFeedback ?? {}) as Partial<
     AudioFeedbackConfig
+  >;
+  const chunkingPartial = (partial.audioChunking ?? {}) as Partial<
+    AudioChunkingConfig
   >;
 
   return {
@@ -71,6 +75,22 @@ export function mergeConfigDefaults(
       readyCuePath:
         feedbackPartial.readyCuePath ??
         DEFAULT_APP_CONFIG.audioFeedback.readyCuePath,
+    },
+    audioChunking: {
+      enabled:
+        chunkingPartial.enabled ?? DEFAULT_APP_CONFIG.audioChunking.enabled,
+      minChunkDurationSec:
+        chunkingPartial.minChunkDurationSec ??
+        DEFAULT_APP_CONFIG.audioChunking.minChunkDurationSec,
+      maxChunkDurationSec:
+        chunkingPartial.maxChunkDurationSec ??
+        DEFAULT_APP_CONFIG.audioChunking.maxChunkDurationSec,
+      silenceThresholdDb:
+        chunkingPartial.silenceThresholdDb ??
+        DEFAULT_APP_CONFIG.audioChunking.silenceThresholdDb,
+      minSilenceDurationSec:
+        chunkingPartial.minSilenceDurationSec ??
+        DEFAULT_APP_CONFIG.audioChunking.minSilenceDurationSec,
     },
   };
 }

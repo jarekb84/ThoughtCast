@@ -4,6 +4,7 @@ export type { RecordingStatus } from './RecordingStatus';
 export type {
   TranscriptionCompleteEvent,
   TranscriptionErrorEvent,
+  TranscriptionProgressEvent,
 } from './TranscriptionEvents';
 export {
   SESSION_AUDIO_COMPRESSED,
@@ -18,6 +19,7 @@ export type {
 export type {
   TranscriptionEstimate,
   TranscriptionProgress,
+  ChunkProgressInfo,
 } from '../features/sessions/types';
 export { ApiError } from './ApiError';
 

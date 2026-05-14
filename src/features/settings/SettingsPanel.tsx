@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "../../shared/components";
 import { useSettingsForm } from "./useSettingsForm";
 import TranscriptionSettingsSection from "./sections/TranscriptionSettingsSection";
+import AudioChunkingSection from "./sections/audio-chunking/AudioChunkingSection";
 import CompressionSettingsSection from "./sections/CompressionSettingsSection";
 import KeyboardShortcutsSection from "./sections/KeyboardShortcutsSection";
 import AudioFeedbackSection from "./sections/AudioFeedbackSection";
@@ -228,6 +229,11 @@ function ActiveTabContent({
         />
       );
     case "transcription":
-      return <TranscriptionSettingsSection form={form} />;
+      return (
+        <>
+          <TranscriptionSettingsSection form={form} />
+          <AudioChunkingSection form={form} />
+        </>
+      );
   }
 }

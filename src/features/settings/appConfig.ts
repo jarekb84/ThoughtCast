@@ -41,6 +41,21 @@ export interface AudioFeedbackConfig {
   readyCuePath: string;
 }
 
+/**
+ * Silence-detect-based chunking of long recordings before transcription.
+ * Mirrors the Rust `AudioChunkingConfig`. Units are SI (seconds, dB) so the
+ * fields can flow straight into FFmpeg's `silencedetect` filter without
+ * conversion.
+ */
+export interface AudioChunkingConfig {
+  enabled: boolean;
+  minChunkDurationSec: number;
+  maxChunkDurationSec: number;
+  /** Threshold in dB. Negative values are quieter than the threshold. */
+  silenceThresholdDb: number;
+  minSilenceDurationSec: number;
+}
+
 export interface AppConfig {
   whisperPath: string;
   modelPath: string;
@@ -49,6 +64,7 @@ export interface AppConfig {
   audioCompression: AudioCompressionConfig;
   keyboardShortcuts: KeyboardShortcutsConfig;
   audioFeedback: AudioFeedbackConfig;
+  audioChunking: AudioChunkingConfig;
 }
 
 export type PathKind = "executable" | "file" | "ffmpeg";
@@ -92,9 +108,24 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     stopCuePath: "",
     readyCuePath: "",
   },
+  audioChunking: {
+    enabled: true,
+    minChunkDurationSec: 7 * 60,
+    maxChunkDurationSec: 10 * 60,
+    silenceThresholdDb: -35,
+    minSilenceDurationSec: 0.5,
+  },
 };
 
 export const COMPRESSION_AGE_OPTIONS: readonly number[] = [1, 7, 30];
+
+/** Bounds used by the chunking settings UI and draft validation. */
+export const CHUNKING_LIMITS = {
+  minChunkDurationSec: { min: 60, max: 1800 },
+  maxChunkDurationSec: { min: 60, max: 1800 },
+  silenceThresholdDb: { min: -80, max: -10 },
+  minSilenceDurationSec: { min: 0.1, max: 5 },
+} as const;
 
 /** Minimum push-to-talk hold (ms) below which we treat the event as a no-op. */
 export const PUSH_TO_TALK_MIN_HOLD_MS = 300;

@@ -76,6 +76,9 @@ mod tests {
             clipboard_copied: false,
             transcription_time_seconds: None,
             model_path: None,
+            chunking_analysis_seconds: None,
+            chunk_count: None,
+            chunking_used_fallback: None,
         }
     }
 

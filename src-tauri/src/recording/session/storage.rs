@@ -99,6 +99,9 @@ mod tests {
             clipboard_copied: false,
             transcription_time_seconds: None,
             model_path: None,
+            chunking_analysis_seconds: None,
+            chunk_count: None,
+            chunking_used_fallback: None,
         }
     }
 
@@ -211,6 +214,9 @@ mod tests {
             clipboard_copied: true,
             transcription_time_seconds: Some(18.5),
             model_path: Some("/path/to/model.bin".to_string()),
+            chunking_analysis_seconds: None,
+            chunk_count: None,
+            chunking_used_fallback: None,
         };
 
         let json = serde_json::to_string(&session).unwrap();

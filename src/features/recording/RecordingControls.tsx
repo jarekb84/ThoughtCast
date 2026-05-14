@@ -47,7 +47,12 @@ export default function RecordingControls({
       <div className="recording-controls">
         {displayData.shouldDisplay && (
           <div className="transcription-estimate">
-            <div className="estimate-text">Estimated: {displayData.estimatedText}</div>
+            {displayData.chunkLabel && (
+              <div className="estimate-chunk-label">{displayData.chunkLabel}</div>
+            )}
+            {displayData.estimatedText && (
+              <div className="estimate-text">Estimated: {displayData.estimatedText}</div>
+            )}
             {displayData.remainingText && (
               <div className="estimate-remaining">{displayData.remainingText}</div>
             )}

@@ -1,8 +1,21 @@
-import { AppConfig, COMPRESSION_AGE_OPTIONS } from "./appConfig";
+import { AppConfig, CHUNKING_LIMITS, COMPRESSION_AGE_OPTIONS } from "./appConfig";
+
+/**
+ * Settings-draft validation issues, keyed by either an `AppConfig` field name
+ * or one of the named cross-field issues (`ageThreshold`, chunking bounds).
+ */
+type ChunkingFieldKey =
+  | "chunkingMinDuration"
+  | "chunkingMaxDuration"
+  | "chunkingMinMaxOrder"
+  | "chunkingSilenceThreshold"
+  | "chunkingMinSilenceDuration";
 
 export interface SettingsDraftIssues {
   /** Field-keyed issue messages — empty means valid. */
-  fieldErrors: Partial<Record<keyof AppConfig | "ageThreshold", string>>;
+  fieldErrors: Partial<
+    Record<keyof AppConfig | "ageThreshold" | ChunkingFieldKey, string>
+  >;
   /** True when no field has a save-blocking issue. */
   isValid: boolean;
 }
@@ -28,6 +41,41 @@ export function validateSettingsDraft(draft: AppConfig): SettingsDraftIssues {
     fieldErrors.ageThreshold = `Age threshold must be one of: ${COMPRESSION_AGE_OPTIONS.join(
       ", "
     )} days`;
+  }
+
+  const chunking = draft.audioChunking;
+  const minBounds = CHUNKING_LIMITS.minChunkDurationSec;
+  const maxBounds = CHUNKING_LIMITS.maxChunkDurationSec;
+  const thresholdBounds = CHUNKING_LIMITS.silenceThresholdDb;
+  const silenceBounds = CHUNKING_LIMITS.minSilenceDurationSec;
+
+  if (
+    chunking.minChunkDurationSec < minBounds.min ||
+    chunking.minChunkDurationSec > minBounds.max
+  ) {
+    fieldErrors.chunkingMinDuration = `Min chunk duration must be ${minBounds.min}–${minBounds.max} sec`;
+  }
+  if (
+    chunking.maxChunkDurationSec < maxBounds.min ||
+    chunking.maxChunkDurationSec > maxBounds.max
+  ) {
+    fieldErrors.chunkingMaxDuration = `Max chunk duration must be ${maxBounds.min}–${maxBounds.max} sec`;
+  }
+  if (chunking.minChunkDurationSec >= chunking.maxChunkDurationSec) {
+    fieldErrors.chunkingMinMaxOrder =
+      "Min chunk duration must be less than max chunk duration";
+  }
+  if (
+    chunking.silenceThresholdDb < thresholdBounds.min ||
+    chunking.silenceThresholdDb > thresholdBounds.max
+  ) {
+    fieldErrors.chunkingSilenceThreshold = `Silence threshold must be ${thresholdBounds.min}–${thresholdBounds.max} dB`;
+  }
+  if (
+    chunking.minSilenceDurationSec < silenceBounds.min ||
+    chunking.minSilenceDurationSec > silenceBounds.max
+  ) {
+    fieldErrors.chunkingMinSilenceDuration = `Min silence duration must be ${silenceBounds.min}–${silenceBounds.max} sec`;
   }
 
   return {

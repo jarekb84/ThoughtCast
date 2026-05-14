@@ -18,6 +18,19 @@ pub struct Session {
     /// Model used for transcription (for filtering estimates by model)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_path: Option<String>,
+    /// Wall-clock seconds the silence-detect + split pass took. None for
+    /// recordings that bypassed chunking (short, or chunking disabled).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chunking_analysis_seconds: Option<f64>,
+    /// Number of chunks the recording was split into. None when chunking did
+    /// not run; 1 when the planner decided no split was needed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chunk_count: Option<u32>,
+    /// True when the planner had to fall back to a hard cut because no
+    /// silence was found in the configured window. Surfaced in the UI so the
+    /// user knows the seam may be rougher than usual.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chunking_used_fallback: Option<bool>,
 }
 
 /// Index containing all recording sessions
@@ -108,6 +121,62 @@ impl Default for KeyboardShortcutsConfig {
     }
 }
 
+/// Silence-detect-based chunking of long recordings before transcription,
+/// persisted under `audioChunking` in config.json.
+///
+/// Fields are stored in SI units (seconds, dB) to match FFmpeg's
+/// `silencedetect` filter directly and avoid unit conversions in the Rust
+/// code path.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AudioChunkingConfig {
+    #[serde(rename = "enabled", default = "default_chunking_enabled")]
+    pub enabled: bool,
+    /// Minimum chunk length in seconds. Recordings shorter than this skip
+    /// chunking entirely (no-op fast path).
+    #[serde(rename = "minChunkDurationSec", default = "default_min_chunk_duration_sec")]
+    pub min_chunk_duration_sec: f64,
+    /// Maximum chunk length in seconds. If no silence is found within
+    /// [min, max] the planner falls back to a hard cut at this offset.
+    #[serde(rename = "maxChunkDurationSec", default = "default_max_chunk_duration_sec")]
+    pub max_chunk_duration_sec: f64,
+    /// Silence threshold in dB (negative — quieter than the threshold counts
+    /// as silence). FFmpeg's `noise=` parameter.
+    #[serde(rename = "silenceThresholdDb", default = "default_silence_threshold_db")]
+    pub silence_threshold_db: f64,
+    /// Minimum continuous silence length, in seconds, to count as a cut
+    /// candidate. FFmpeg's `d=` parameter.
+    #[serde(rename = "minSilenceDurationSec", default = "default_min_silence_duration_sec")]
+    pub min_silence_duration_sec: f64,
+}
+
+fn default_chunking_enabled() -> bool {
+    true
+}
+fn default_min_chunk_duration_sec() -> f64 {
+    7.0 * 60.0
+}
+fn default_max_chunk_duration_sec() -> f64 {
+    10.0 * 60.0
+}
+fn default_silence_threshold_db() -> f64 {
+    -35.0
+}
+fn default_min_silence_duration_sec() -> f64 {
+    0.5
+}
+
+impl Default for AudioChunkingConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_chunking_enabled(),
+            min_chunk_duration_sec: default_min_chunk_duration_sec(),
+            max_chunk_duration_sec: default_max_chunk_duration_sec(),
+            silence_threshold_db: default_silence_threshold_db(),
+            min_silence_duration_sec: default_min_silence_duration_sec(),
+        }
+    }
+}
+
 /// Audio feedback (cue) configuration, persisted under `audioFeedback` in config.json.
 ///
 /// Empty `*_cue_path` strings mean "use the bundled default at
@@ -166,6 +235,8 @@ pub struct AppConfig {
     pub keyboard_shortcuts: KeyboardShortcutsConfig,
     #[serde(rename = "audioFeedback", default)]
     pub audio_feedback: AudioFeedbackConfig,
+    #[serde(rename = "audioChunking", default)]
+    pub audio_chunking: AudioChunkingConfig,
 }
 
 impl Default for AppConfig {
@@ -178,6 +249,7 @@ impl Default for AppConfig {
             audio_compression: AudioCompressionConfig::default(),
             keyboard_shortcuts: KeyboardShortcutsConfig::default(),
             audio_feedback: AudioFeedbackConfig::default(),
+            audio_chunking: AudioChunkingConfig::default(),
         }
     }
 }
@@ -215,6 +287,9 @@ mod tests {
             clipboard_copied: true,
             transcription_time_seconds: Some(6.8),
             model_path: Some("/path/to/model.bin".to_string()),
+            chunking_analysis_seconds: None,
+            chunk_count: None,
+            chunking_used_fallback: None,
         };
 
         let json = serde_json::to_string(&session).unwrap();
@@ -265,6 +340,9 @@ mod tests {
                 clipboard_copied: true,
                 transcription_time_seconds: Some(4.5),
                 model_path: Some("/model.bin".to_string()),
+                chunking_analysis_seconds: None,
+                chunk_count: None,
+                chunking_used_fallback: None,
             },
             Session {
                 id: "session2".to_string(),
@@ -276,6 +354,9 @@ mod tests {
                 clipboard_copied: false,
                 transcription_time_seconds: None,
                 model_path: None,
+                chunking_analysis_seconds: None,
+                chunk_count: None,
+                chunking_used_fallback: None,
             },
         ];
 
@@ -442,5 +523,72 @@ mod tests {
         let ptt_json = serde_json::to_string(&TriggerMode::PushToTalk).unwrap();
         assert_eq!(toggle_json, "\"toggle\"");
         assert_eq!(ptt_json, "\"push-to-talk\"");
+    }
+
+    #[test]
+    fn test_audio_chunking_defaults() {
+        let cfg = AudioChunkingConfig::default();
+        assert!(cfg.enabled, "chunking should default on");
+        assert_eq!(cfg.min_chunk_duration_sec, 420.0);
+        assert_eq!(cfg.max_chunk_duration_sec, 600.0);
+        assert_eq!(cfg.silence_threshold_db, -35.0);
+        assert!((cfg.min_silence_duration_sec - 0.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_app_config_round_trip_with_chunking() {
+        let config = AppConfig {
+            audio_chunking: AudioChunkingConfig {
+                enabled: false,
+                min_chunk_duration_sec: 300.0,
+                max_chunk_duration_sec: 480.0,
+                silence_threshold_db: -42.0,
+                min_silence_duration_sec: 0.8,
+            },
+            ..AppConfig::default()
+        };
+
+        let json = serde_json::to_string(&config).unwrap();
+        let parsed: AppConfig = serde_json::from_str(&json).unwrap();
+
+        assert!(!parsed.audio_chunking.enabled);
+        assert_eq!(parsed.audio_chunking.min_chunk_duration_sec, 300.0);
+        assert_eq!(parsed.audio_chunking.max_chunk_duration_sec, 480.0);
+        assert_eq!(parsed.audio_chunking.silence_threshold_db, -42.0);
+        assert!((parsed.audio_chunking.min_silence_duration_sec - 0.8).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_legacy_config_defaults_chunking_enabled() {
+        // A config from before chunking landed must keep working and adopt
+        // the new "chunking on" default without manual migration.
+        let json = r#"{
+            "whisperPath": "/usr/bin/whisper",
+            "modelPath": "/models/base.bin"
+        }"#;
+
+        let config: AppConfig = serde_json::from_str(json).unwrap();
+        assert!(config.audio_chunking.enabled);
+        assert_eq!(config.audio_chunking.min_chunk_duration_sec, 420.0);
+        assert_eq!(config.audio_chunking.max_chunk_duration_sec, 600.0);
+    }
+
+    #[test]
+    fn test_session_round_trips_chunking_telemetry() {
+        let json = r#"{
+            "id": "test-id",
+            "timestamp": "2024-11-02T15:30:00Z",
+            "audio_path": "audio/test.wav",
+            "duration": 1500.0,
+            "preview": "Test",
+            "chunking_analysis_seconds": 4.2,
+            "chunk_count": 3,
+            "chunking_used_fallback": false
+        }"#;
+
+        let session: Session = serde_json::from_str(json).unwrap();
+        assert_eq!(session.chunking_analysis_seconds, Some(4.2));
+        assert_eq!(session.chunk_count, Some(3));
+        assert_eq!(session.chunking_used_fallback, Some(false));
     }
 }
