@@ -1,4 +1,4 @@
-import { ApiError } from '..';
+import { ApiError, Session } from '..';
 import { wrapTauriInvoke } from './tauriInvokeWrapper';
 
 /**
@@ -14,12 +14,20 @@ export interface ITranscriptService {
   loadTranscript(sessionId: string): Promise<string>;
 
   /**
-   * Re-transcribe a session's audio file
+   * Kick off re-transcription of a session's audio file.
+   *
+   * Returns immediately with the session row marked `preview: "Processing..."`
+   * so the UI's existing transcribing view (the same one used after Stop
+   * Recording) can light up. The actual Whisper pass runs on a background
+   * thread and emits `transcription-complete` / `transcription-progress` /
+   * `transcription-error` Tauri events that `useRecordingWorkflow` already
+   * subscribes to.
+   *
    * @param sessionId - The unique session identifier
-   * @returns The new transcript text
-   * @throws {ApiError} If retranscription fails
+   * @returns The session row with its in-flight `preview` marker
+   * @throws {ApiError} If retranscription cannot be started (e.g. missing audio)
    */
-  retranscribe(sessionId: string): Promise<string>;
+  retranscribe(sessionId: string): Promise<Session>;
 }
 
 /**
@@ -37,8 +45,8 @@ export class TauriTranscriptService implements ITranscriptService {
     );
   }
 
-  async retranscribe(sessionId: string): Promise<string> {
-    return wrapTauriInvoke<string>(
+  async retranscribe(sessionId: string): Promise<Session> {
+    return wrapTauriInvoke<Session>(
       'retranscribe_session',
       { sessionId },
       `Failed to retranscribe session: ${sessionId}`,
@@ -78,9 +86,9 @@ export class MockTranscriptService implements ITranscriptService {
     return transcript;
   }
 
-  async retranscribe(sessionId: string): Promise<string> {
-    // Simulate longer async operation for transcription
-    await new Promise(resolve => setTimeout(resolve, 500));
+  async retranscribe(sessionId: string): Promise<Session> {
+    // Simulate the immediate-return contract of the real Tauri command.
+    await new Promise(resolve => setTimeout(resolve, 50));
 
     const existingTranscript = this.mockTranscripts.get(sessionId);
     if (!existingTranscript) {
@@ -91,11 +99,20 @@ export class MockTranscriptService implements ITranscriptService {
       );
     }
 
-    // Generate "updated" transcript
+    // Pre-update the mock so a later call to loadTranscript reflects the
+    // "re-transcribed" content. Real flow updates the file on disk before
+    // emitting `transcription-complete`.
     const newTranscript = `[Re-transcribed] ${existingTranscript}`;
     this.mockTranscripts.set(sessionId, newTranscript);
 
-    return newTranscript;
+    return {
+      id: sessionId,
+      preview: 'Processing...',
+      timestamp: new Date().toISOString(),
+      audio_path: `audio/${sessionId}.m4a`,
+      duration: 0,
+      transcript_path: `text/${sessionId}.txt`,
+    };
   }
 
   /**

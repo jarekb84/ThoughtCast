@@ -119,15 +119,14 @@ describe('MockTranscriptService', () => {
   });
 
   describe('retranscribe', () => {
-    it('should return updated transcript', async () => {
-      const originalTranscript = await service.loadTranscript('2024-11-01_10-30-00');
-      const newTranscript = await service.retranscribe('2024-11-01_10-30-00');
+    it('should return a session row marked as in-flight', async () => {
+      const session = await service.retranscribe('2024-11-01_10-30-00');
 
-      expect(newTranscript).toContain('[Re-transcribed]');
-      expect(newTranscript).toContain(originalTranscript);
+      expect(session.id).toBe('2024-11-01_10-30-00');
+      expect(session.preview).toBe('Processing...');
     });
 
-    it('should update the stored transcript', async () => {
+    it('should pre-update the stored transcript so a later load reflects the new text', async () => {
       await service.retranscribe('2024-11-01_10-30-00');
       const updatedTranscript = await service.loadTranscript('2024-11-01_10-30-00');
 
@@ -139,14 +138,6 @@ describe('MockTranscriptService', () => {
       await expect(service.retranscribe('unknown-session')).rejects.toThrow(
         'Session not found for retranscription: unknown-session'
       );
-    });
-
-    it('should simulate longer async operation', async () => {
-      const start = Date.now();
-      await service.retranscribe('2024-11-01_10-30-00');
-      const duration = Date.now() - start;
-
-      expect(duration).toBeGreaterThanOrEqual(450); // ~500ms delay
     });
   });
 

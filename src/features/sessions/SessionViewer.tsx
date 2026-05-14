@@ -3,12 +3,8 @@ import { formatTimestamp } from '../../shared/formatters/date-time';
 import { formatDuration } from '../../shared/formatters/duration';
 import { formatFilePath } from '../../shared/formatters/file-path';
 import RecordingControls from '../recording/RecordingControls';
-import { Button, Card, InfoRow, ProgressBar } from '../../shared/components';
+import { Button, Card, InfoRow } from '../../shared/components';
 import { useTranscriptViewer } from './useTranscriptViewer';
-import { useTranscriptionProgress } from '../transcription/useTranscriptionProgress';
-import { formatHumanReadableDuration } from '../transcription/formatHumanReadableDuration';
-import { prepareProgressDisplay } from '../transcription/prepareProgressDisplay';
-import { determineTranscriptionState } from '../transcription/determineTranscriptionState';
 import './SessionViewer.css';
 
 /**
@@ -47,6 +43,7 @@ interface SessionViewerProps {
   onResumeRecording: () => void;
   onCancelRecording: () => void;
   onStopRecording: () => void;
+  onRetranscribe: (sessionId: string) => Promise<void>;
   onSessionsChanged: () => Promise<void>;
 }
 
@@ -61,30 +58,23 @@ export default function SessionViewer({
   onResumeRecording,
   onCancelRecording,
   onStopRecording,
+  onRetranscribe,
   onSessionsChanged,
 }: SessionViewerProps) {
   const {
     transcript,
     transcriptError,
     isLoadingTranscript,
-    isRetranscribing,
     isCopying,
     copyButtonText,
     handleCopyToClipboard,
-    handleRetranscribe,
   } = useTranscriptViewer(selectedSession, onSessionsChanged);
 
-  // Determine transcription state and track progress
-  const transcriptionState = determineTranscriptionState(
-    selectedSession,
-    isProcessing,
-    recordingDuration
-  );
-  const progress = useTranscriptionProgress(
-    transcriptionState.isTranscribing,
-    transcriptionState.audioDurationSeconds
-  );
-  const displayData = prepareProgressDisplay(progress, formatHumanReadableDuration);
+  const handleRetranscribeClick = () => {
+    if (selectedSession) {
+      void onRetranscribe(selectedSession.id);
+    }
+  };
 
   return (
     <div className="session-viewer">
@@ -144,10 +134,10 @@ export default function SessionViewer({
               )}
               <Button
                 variant="success"
-                onClick={handleRetranscribe}
-                disabled={isRetranscribing}
+                onClick={handleRetranscribeClick}
+                disabled={isProcessing || !selectedSession}
               >
-                {isRetranscribing ? "Re-transcribing..." : "Re-transcribe"}
+                Re-transcribe
               </Button>
             </div>
 
@@ -163,41 +153,6 @@ export default function SessionViewer({
                 </div>
               ) : transcript && transcript.length > 0 ? (
                 <div className="transcript-text">{transcript}</div>
-              ) : selectedSession.preview === 'Processing...' ? (
-                <div className="transcript-text transcript-processing">
-                  <span className="processing-icon">⟳</span>
-                  <div className="transcription-status">
-                    {displayData.shouldDisplay ? (
-                      <>
-                        <span>
-                          Transcribing...
-                          {displayData.chunkLabel && (
-                            <> {displayData.chunkLabel}</>
-                          )}
-                          {displayData.estimatedText && (
-                            <> {displayData.estimatedText} estimated</>
-                          )}
-                        </span>
-                        {displayData.remainingText && (
-                          <span className="remaining-estimate">
-                            {displayData.remainingText}
-                          </span>
-                        )}
-                        <ProgressBar
-                          percent={displayData.progressPercent}
-                          height={6}
-                          className="session-progress-bar"
-                        />
-                      </>
-                    ) : (
-                      <span>Transcription in progress...</span>
-                    )}
-                    <p className="processing-hint">
-                      The audio has been saved. Whisper is transcribing in the
-                      background.
-                    </p>
-                  </div>
-                </div>
               ) : (
                 <div className="transcript-text no-transcript">
                   {selectedSession.preview || "No transcript available"}

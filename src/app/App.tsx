@@ -36,6 +36,7 @@ function App() {
     handleResumeRecording,
     handleCancelRecording,
     handleStopRecording,
+    handleRetranscribe,
     setSelectedId,
     loadSessions,
   } = useRecordingWorkflow();
@@ -91,6 +92,7 @@ function App() {
         onResumeRecording={handleResumeRecording}
         onCancelRecording={handleCancelRecording}
         onStopRecording={handleStopRecording}
+        onRetranscribe={handleRetranscribe}
         onSessionsChanged={loadSessions}
       />
       <SettingsPanel

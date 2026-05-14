@@ -33,9 +33,9 @@ pub use compression::{
 
 // Session operations (main API surface)
 pub use session::{
-    cancel_recording, load_sessions, load_transcript, orchestrate_async_transcription,
-    pause_recording, resume_recording, retranscribe_session, start_recording, stop_recording,
-    TranscriptionResult,
+    cancel_recording, load_sessions, load_transcript, orchestrate_async_retranscription,
+    orchestrate_async_transcription, pause_recording, resume_recording, start_recording,
+    start_retranscription, stop_recording, TranscriptionResult,
 };
 
 // Utility functions

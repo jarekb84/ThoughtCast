@@ -28,6 +28,13 @@ pub struct RecordingState {
     pub total_paused_duration_ms: i64,
     pub active_session_id: Option<String>,
     pub transcribing_session_ids: std::collections::HashSet<String>,
+    /// Device sample rate (Hz) for the current capture, populated by the audio
+    /// thread once it has queried the input device. The WAV writer reads this
+    /// at save time so the file's header matches the rate the samples were
+    /// actually captured at — labelling them 44.1 kHz when CPAL ran at 48 kHz
+    /// time-stretches playback by ~8.8% and silently truncates downstream
+    /// chunked transcription.
+    pub sample_rate: Option<u32>,
 }
 
 impl RecordingState {
@@ -40,6 +47,7 @@ impl RecordingState {
             total_paused_duration_ms: 0,
             active_session_id: None,
             transcribing_session_ids: std::collections::HashSet::new(),
+            sample_rate: None,
         }
     }
 
