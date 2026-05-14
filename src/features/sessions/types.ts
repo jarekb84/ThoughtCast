@@ -16,6 +16,12 @@ export interface Session {
   transcript_path?: string;
   /** Whether the transcript was automatically copied to clipboard */
   clipboard_copied?: boolean;
+  /** Wall-clock seconds spent on silence-detect + split. Absent for unchunked recordings. */
+  chunking_analysis_seconds?: number;
+  /** Number of chunks the recording was split into. Absent when chunking did not run. */
+  chunk_count?: number;
+  /** True when the planner had to fall back to a hard cut (no silence in window). */
+  chunking_used_fallback?: boolean;
 }
 
 /**
@@ -53,6 +59,17 @@ export interface TranscriptionEstimate {
 }
 
 /**
+ * Per-chunk position when a chunked transcription is in flight. `null` when
+ * the recording is unchunked (no `transcription-progress` event received).
+ */
+export interface ChunkProgressInfo {
+  /** 1-indexed chunk currently being transcribed. */
+  current: number;
+  /** Total chunks in the plan. */
+  total: number;
+}
+
+/**
  * Progress data for ongoing transcription
  */
 export interface TranscriptionProgress {
@@ -66,4 +83,6 @@ export interface TranscriptionProgress {
   hasEstimate: boolean;
   /** Remaining seconds (estimated - elapsed) */
   remainingSeconds: number | null;
+  /** Chunk position when chunked transcription is active, else null. */
+  chunkInfo: ChunkProgressInfo | null;
 }

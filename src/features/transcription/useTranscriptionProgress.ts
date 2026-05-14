@@ -1,16 +1,25 @@
 import { useEffect, useState, useRef } from 'react';
-import { useApi, TranscriptionProgress } from '../../api';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import {
+  useApi,
+  TranscriptionProgress,
+  ChunkProgressInfo,
+  TranscriptionProgressEvent,
+} from '../../api';
 import { calculateProgressPercent } from './calculateProgressPercent';
 
 /**
  * Hook to track transcription progress with time estimates
  *
- * Fetches historical estimates and tracks elapsed time to show progress.
- * Updates every second while transcription is active.
+ * Fetches a historical time-based estimate and tracks elapsed time so the
+ * UI can show a progress bar. Also subscribes to the `transcription-progress`
+ * Tauri event so chunked recordings can surface "chunk N of M" while each
+ * chunk's Whisper pass runs.
  *
  * @param isTranscribing - Whether transcription is currently active
  * @param audioDurationSeconds - Duration of the audio being transcribed
- * @returns Progress data including estimate, elapsed time, and percentage
+ * @returns Progress data including estimate, elapsed time, percentage, and
+ *          chunk position (null for unchunked recordings).
  */
 export function useTranscriptionProgress(
   isTranscribing: boolean,
@@ -19,6 +28,7 @@ export function useTranscriptionProgress(
   const { transcriptionStatsService } = useApi();
   const [estimatedSeconds, setEstimatedSeconds] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [chunkInfo, setChunkInfo] = useState<ChunkProgressInfo | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -32,22 +42,11 @@ export function useTranscriptionProgress(
 
     async function fetchEstimate() {
       try {
-        console.log(
-          '[useTranscriptionProgress] Fetching estimate for audio duration:',
-          audioDurationSeconds
-        );
         const estimate = await transcriptionStatsService.getTranscriptionEstimate(
           audioDurationSeconds
         );
-
-        console.log('[useTranscriptionProgress] Received estimate:', estimate);
-
         if (mounted && estimate) {
           setEstimatedSeconds(estimate.estimatedSeconds);
-          console.log(
-            '[useTranscriptionProgress] Set estimated seconds:',
-            estimate.estimatedSeconds
-          );
         }
       } catch (error) {
         // Estimate fetch failed - continue without estimate
@@ -69,6 +68,7 @@ export function useTranscriptionProgress(
       startTimeRef.current = null;
       setElapsedSeconds(0);
       setEstimatedSeconds(null);
+      setChunkInfo(null);
 
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -78,12 +78,10 @@ export function useTranscriptionProgress(
       return;
     }
 
-    // Start tracking time
     if (!startTimeRef.current) {
       startTimeRef.current = Date.now();
     }
 
-    // Update elapsed time every second
     intervalRef.current = setInterval(() => {
       if (startTimeRef.current) {
         const elapsed = (Date.now() - startTimeRef.current) / 1000;
@@ -99,13 +97,44 @@ export function useTranscriptionProgress(
     };
   }, [isTranscribing]);
 
-  // Calculate progress percentage
+  // Subscribe to per-chunk progress events. Single-shot transcriptions never
+  // fire this, so `chunkInfo` stays null and the UI shows the time-based
+  // estimate only.
+  useEffect(() => {
+    if (!isTranscribing) return;
+
+    let unlisten: UnlistenFn | null = null;
+    let cancelled = false;
+
+    listen<TranscriptionProgressEvent>('transcription-progress', (event) => {
+      if (cancelled) return;
+      setChunkInfo({
+        current: event.payload.current,
+        total: event.payload.total,
+      });
+    })
+      .then((fn) => {
+        if (cancelled) {
+          fn();
+        } else {
+          unlisten = fn;
+        }
+      })
+      .catch((error) => {
+        console.warn('Failed to subscribe to transcription-progress:', error);
+      });
+
+    return () => {
+      cancelled = true;
+      if (unlisten) unlisten();
+    };
+  }, [isTranscribing]);
+
   const progressPercent = calculateProgressPercent(
     elapsedSeconds,
     estimatedSeconds
   );
 
-  // Calculate remaining time
   const remainingSeconds =
     estimatedSeconds !== null
       ? Math.max(0, estimatedSeconds - elapsedSeconds)
@@ -117,5 +146,6 @@ export function useTranscriptionProgress(
     progressPercent,
     hasEstimate: estimatedSeconds !== null,
     remainingSeconds,
+    chunkInfo,
   };
 }

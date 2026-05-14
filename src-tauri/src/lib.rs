@@ -90,6 +90,9 @@ fn stop_recording(state: State<AppState>, app: tauri::AppHandle) -> Result<Sessi
                     },
                 );
             }
+            TranscriptionResult::Progress(progress) => {
+                let _ = app.emit("transcription-progress", progress);
+            }
             TranscriptionResult::Compressed(compression_event) => {
                 let _ = app.emit("session-audio-compressed", compression_event);
             }

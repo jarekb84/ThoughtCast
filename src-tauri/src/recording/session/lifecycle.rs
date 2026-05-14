@@ -1,11 +1,15 @@
 use crate::recording::audio::{start_capture, write_wav_file};
 use crate::recording::compression::{run_post_transcription_compression, SessionAudioCompressedEvent};
-use crate::recording::models::Session;
+use crate::recording::models::{AppConfig, Session};
 use crate::recording::session::storage::add_session;
 use crate::recording::state::{RecordingStatus, SharedRecordingState};
-use crate::recording::transcription::transcribe_with_whisper;
+use crate::recording::transcription::{
+    transcribe_in_chunks, transcribe_with_whisper, ChunkingTelemetry,
+};
 use crate::recording::utils::{copy_to_clipboard, get_storage_dir};
 use chrono::Utc;
+use std::path::Path;
+use std::sync::Arc;
 use std::thread;
 use std::time::Instant;
 
@@ -137,6 +141,9 @@ pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
         clipboard_copied: false,
         transcription_time_seconds: None,
         model_path: None,
+        chunking_analysis_seconds: None,
+        chunk_count: None,
+        chunking_used_fallback: None,
     };
 
     // Persist initial session to index
@@ -166,7 +173,7 @@ pub fn orchestrate_async_transcription<F>(
     audio_path: std::path::PathBuf,
     event_emitter: F,
 ) where
-    F: Fn(TranscriptionResult) + Send + 'static,
+    F: Fn(TranscriptionResult) + Send + Sync + 'static,
 {
     // Mark the session as in-flight for transcription before the worker thread
     // starts so the batch-compression worker won't race it.
@@ -175,7 +182,21 @@ pub fn orchestrate_async_transcription<F>(
     }
 
     thread::spawn(move || {
-        let result = process_transcription_async(audio_path, session_id.clone());
+        // Arc the emitter so the progress callback (which fires repeatedly
+        // during chunked transcription) can share it with the success/error
+        // call paths.
+        let emitter = Arc::new(event_emitter);
+        let progress_session_id = session_id.clone();
+        let progress_emitter = Arc::clone(&emitter);
+        let progress_fn = move |current: u32, total: u32| {
+            progress_emitter(TranscriptionResult::Progress(ChunkProgressEvent {
+                session_id: progress_session_id.clone(),
+                current,
+                total,
+            }));
+        };
+
+        let result = process_transcription_async(audio_path, session_id.clone(), &progress_fn);
 
         // Update state to idle regardless of success/failure
         if let Ok(mut state_guard) = state.lock() {
@@ -188,7 +209,7 @@ pub fn orchestrate_async_transcription<F>(
             Ok(session) => {
                 let audio_path_for_compression = session.audio_path.clone();
                 let session_id_for_compression = session.id.clone();
-                event_emitter(TranscriptionResult::Success(session));
+                emitter(TranscriptionResult::Success(session));
 
                 // Best-effort post-transcription compression. Runs on this same
                 // background thread after the success event has already fired
@@ -199,7 +220,7 @@ pub fn orchestrate_async_transcription<F>(
                     &audio_path_for_compression,
                 ) {
                     Ok(Some(compression_event)) => {
-                        event_emitter(TranscriptionResult::Compressed(compression_event));
+                        emitter(TranscriptionResult::Compressed(compression_event));
                     }
                     Ok(None) => {
                         // Compression disabled — nothing to do.
@@ -214,7 +235,7 @@ pub fn orchestrate_async_transcription<F>(
                     }
                 }
             }
-            Err(error) => event_emitter(TranscriptionResult::Error {
+            Err(error) => emitter(TranscriptionResult::Error {
                 session_id,
                 error,
             }),
@@ -222,9 +243,18 @@ pub fn orchestrate_async_transcription<F>(
     });
 }
 
+/// Per-chunk progress for a chunked transcription. `current` is 1-indexed.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ChunkProgressEvent {
+    pub session_id: String,
+    pub current: u32,
+    pub total: u32,
+}
+
 /// Result of async transcription for event emission
 pub enum TranscriptionResult {
     Success(Session),
+    Progress(ChunkProgressEvent),
     Compressed(SessionAudioCompressedEvent),
     Error { session_id: String, error: String },
 }
@@ -232,19 +262,23 @@ pub enum TranscriptionResult {
 /// Process transcription asynchronously and update session
 ///
 /// This is the second phase of the stop workflow:
-/// 1. Transcribes audio (if configured)
+/// 1. Transcribes audio (if configured) — routes through the chunked path
+///    when the recording is long enough and chunking is enabled
 /// 2. Copies transcript to clipboard (if successful)
-/// 3. Updates session record with transcription results
-/// 4. Records transcription timing statistics for future estimates
+/// 3. Updates session record with transcription + chunking telemetry
+///
+/// `on_progress(current, total)` fires per chunk on the chunked path. The
+/// single-shot path does not emit progress (the UI falls back to its
+/// time-based estimate).
 ///
 /// Returns updated session on success, or error message on failure
 pub fn process_transcription_async(
     audio_path: std::path::PathBuf,
     session_id: String,
+    on_progress: &(dyn Fn(u32, u32) + Sync),
 ) -> Result<Session, String> {
     use crate::recording::session::storage::{load_sessions, save_sessions};
 
-    // Load sessions to get audio duration before transcription
     let mut index = load_sessions()?;
     let audio_duration = index
         .sessions
@@ -253,21 +287,23 @@ pub fn process_transcription_async(
         .map(|s| s.duration)
         .unwrap_or(0.0);
 
-    // Time the transcription process
+    // Single config load: drives both the route decision (chunking vs
+    // single-shot) and the model-path telemetry the estimator needs.
+    let config = crate::recording::load_config().ok();
+
     let transcription_start = Instant::now();
-
-    // Attempt transcription
-    let (transcript_path, preview, clipboard_copied) =
-        process_transcription(&audio_path, &session_id);
-
+    let (transcript_path, preview, clipboard_copied, chunking_telemetry) =
+        run_transcription_route(
+            &audio_path,
+            &session_id,
+            audio_duration,
+            config.as_ref(),
+            on_progress,
+        );
     let transcription_elapsed = transcription_start.elapsed().as_secs_f64();
 
-    // Get model path for tracking
-    let model_path = crate::recording::load_config()
-        .ok()
-        .map(|config| config.model_path);
+    let model_path = config.as_ref().map(|c| c.model_path.clone());
 
-    // Find and update the session
     let updated_session = {
         let session = index
             .sessions
@@ -279,19 +315,96 @@ pub fn process_transcription_async(
         session.preview = preview;
         session.clipboard_copied = clipboard_copied;
 
-        // Store transcription metadata for progress estimation
         if !transcript_path.is_empty() && audio_duration > 0.0 {
             session.transcription_time_seconds = Some(transcription_elapsed);
             session.model_path = model_path;
+        }
+        if let Some(telemetry) = chunking_telemetry {
+            session.chunking_analysis_seconds = Some(telemetry.analysis_seconds);
+            session.chunk_count = Some(telemetry.chunk_count);
+            session.chunking_used_fallback = Some(telemetry.used_fallback);
         }
 
         session.clone()
     };
 
-    // Save updated sessions
     save_sessions(&index)?;
 
     Ok(updated_session)
+}
+
+/// Decide between the chunked and single-shot transcription paths and run
+/// the chosen one. Returns the same shape the legacy single-shot path
+/// produced, plus optional chunking telemetry to persist on the session.
+///
+/// Chunking is silently disabled when FFmpeg is missing or unconfigured —
+/// the user shouldn't get a transcription failure just because chunking
+/// can't run. The path falls back to a normal single-shot transcription
+/// in that case (PRD edge case 7).
+fn run_transcription_route(
+    audio_path: &Path,
+    session_id: &str,
+    audio_duration_sec: f64,
+    config: Option<&AppConfig>,
+    on_progress: &(dyn Fn(u32, u32) + Sync),
+) -> (String, String, bool, Option<ChunkingTelemetry>) {
+    if let Some(cfg) = config {
+        if should_use_chunking(cfg, audio_duration_sec) {
+            return run_chunked_path(audio_path, session_id, audio_duration_sec, cfg, on_progress);
+        }
+    }
+
+    let (path, preview, copied) = process_transcription(audio_path, session_id);
+    (path, preview, copied, None)
+}
+
+fn should_use_chunking(config: &AppConfig, audio_duration_sec: f64) -> bool {
+    if !config.audio_chunking.enabled {
+        return false;
+    }
+    let ffmpeg = config.ffmpeg_path.trim();
+    if ffmpeg.is_empty() {
+        return false;
+    }
+    if !Path::new(ffmpeg).exists() {
+        log::warn!("Chunking enabled but FFmpeg not found at '{}' — running single-shot transcription instead", ffmpeg);
+        return false;
+    }
+    audio_duration_sec > config.audio_chunking.min_chunk_duration_sec
+}
+
+fn run_chunked_path(
+    audio_path: &Path,
+    session_id: &str,
+    audio_duration_sec: f64,
+    config: &AppConfig,
+    on_progress: &(dyn Fn(u32, u32) + Sync),
+) -> (String, String, bool, Option<ChunkingTelemetry>) {
+    match transcribe_in_chunks(audio_path, session_id, audio_duration_sec, config, on_progress) {
+        Ok(outcome) => {
+            let preview = generate_preview(&outcome.transcript_text);
+            let clipboard_copied = if !outcome.transcript_text.is_empty() {
+                copy_to_clipboard(&outcome.transcript_text).is_ok()
+            } else {
+                false
+            };
+            (
+                outcome.transcript_path,
+                preview,
+                clipboard_copied,
+                Some(outcome.telemetry),
+            )
+        }
+        Err(e) => {
+            log::error!("Chunked transcription failed: {}", e);
+            (
+                String::new(),
+                format!("Transcription failed: {}", e),
+                false,
+                None,
+            )
+        }
+    }
 }
 
 /// Calculate recording duration from start time, excluding paused time
@@ -399,30 +512,45 @@ pub fn retranscribe_session(session_id: &str) -> Result<String, String> {
     // Get audio duration for metadata
     let audio_duration = session.duration;
 
-    // Time the transcription process
+    let config = crate::recording::load_config().ok();
+    let no_op_progress: &(dyn Fn(u32, u32) + Sync) = &|_, _| {};
+
     let transcription_start = Instant::now();
-
-    // Run transcription
-    let (transcript_path, transcript_text) = transcribe_with_whisper(&audio_path, session_id)?;
-
+    let (transcript_path, preview, _clipboard_copied, chunking_telemetry) =
+        run_transcription_route(
+            &audio_path,
+            session_id,
+            audio_duration,
+            config.as_ref(),
+            no_op_progress,
+        );
     let transcription_elapsed = transcription_start.elapsed().as_secs_f64();
 
-    // Get model path for tracking
-    let model_path = crate::recording::load_config()
-        .ok()
-        .map(|config| config.model_path);
+    // Reload transcript text from disk so the return matches the saved file
+    // exactly (whether single-shot or stitched-chunk output).
+    let transcript_text = if transcript_path.is_empty() {
+        return Err(preview);
+    } else {
+        let abs_transcript = storage_dir.join(&transcript_path);
+        std::fs::read_to_string(&abs_transcript)
+            .map_err(|e| format!("Failed to read regenerated transcript: {}", e))?
+    };
 
-    // Update session with new transcript info
+    let model_path = config.as_ref().map(|c| c.model_path.clone());
+
     session.transcript_path = transcript_path.clone();
-    session.preview = generate_preview(&transcript_text);
+    session.preview = preview;
 
-    // Store transcription metadata for progress estimation
     if !transcript_path.is_empty() && audio_duration > 0.0 {
         session.transcription_time_seconds = Some(transcription_elapsed);
         session.model_path = model_path;
     }
+    if let Some(telemetry) = chunking_telemetry {
+        session.chunking_analysis_seconds = Some(telemetry.analysis_seconds);
+        session.chunk_count = Some(telemetry.chunk_count);
+        session.chunking_used_fallback = Some(telemetry.used_fallback);
+    }
 
-    // Save updated sessions
     save_sessions(&index)?;
 
     Ok(transcript_text)

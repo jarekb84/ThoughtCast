@@ -12,6 +12,12 @@ export interface ProgressDisplayData {
   remainingText: string | null;
   /** Progress percentage for progress bar */
   progressPercent: number;
+  /**
+   * Chunk-position label like "chunk 2 of 3", or null when the recording is
+   * unchunked. Surfaced alongside the time estimate so the user sees both
+   * dimensions of progress at once.
+   */
+  chunkLabel: string | null;
 }
 
 /**
@@ -28,13 +34,20 @@ export function prepareProgressDisplay(
   progress: TranscriptionProgress,
   formatDuration: (seconds: number) => string
 ): ProgressDisplayData {
-  // Don't show progress if no estimate available
+  const chunkLabel = progress.chunkInfo
+    ? `chunk ${progress.chunkInfo.current} of ${progress.chunkInfo.total}`
+    : null;
+
+  // Show the section whenever we have an estimate OR a chunk position. A
+  // chunked recording may emit `chunk 1 of N` before the historical estimate
+  // arrives, and the user wants to see that immediately.
   if (!progress.hasEstimate || progress.estimatedSeconds === null) {
     return {
-      shouldDisplay: false,
+      shouldDisplay: chunkLabel !== null,
       estimatedText: '',
       remainingText: null,
       progressPercent: 0,
+      chunkLabel,
     };
   }
 
@@ -51,5 +64,6 @@ export function prepareProgressDisplay(
     estimatedText,
     remainingText,
     progressPercent: progress.progressPercent,
+    chunkLabel,
   };
 }

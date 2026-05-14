@@ -1,5 +1,6 @@
 // Core modules
 mod audio;
+mod chunking;
 mod compression;
 mod config;
 mod models;
