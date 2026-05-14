@@ -43,6 +43,20 @@
   padding: var(--space-sm) 0;
 }
 
+/* Virtualized list scaffolding: spacer holds total scrollable height,
+   window positions the rendered slice via translateY. */
+.session-list-virtual-spacer {
+  position: relative;
+  width: 100%;
+}
+
+.session-list-virtual-window {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
 /* Custom scrollbar for better aesthetics */
 .session-list-items::-webkit-scrollbar {
   width: 8px;

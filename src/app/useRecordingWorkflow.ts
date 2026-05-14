@@ -10,6 +10,7 @@ import {
 } from '../api';
 import { listen } from '@tauri-apps/api/event';
 import { logger } from '../shared/utils/logger';
+import { useDocumentActivity } from '../shared/utils/useDocumentActivity';
 import { useRecordingCues } from '../features/audio-feedback/useRecordingCues';
 
 /**
@@ -145,6 +146,7 @@ interface RecordingWorkflowActions {
 export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkflowActions {
   const { sessionService, recordingService } = useApi();
   const cues = useRecordingCues();
+  const activity = useDocumentActivity();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [recordingStatus, setRecordingStatus] = useState<RecordingStatus>('idle');
@@ -310,11 +312,19 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
     };
   }, [loadSessions]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Timer for recording duration
+  // Timer for recording duration. Display granularity is whole seconds
+  // (MM:SS), so polling at 2 Hz keeps the timer visually current without
+  // re-rendering the App tree 10x/sec — every tick rippled through React
+  // reconciliation and forced a repaint of the timer span. Skip polling
+  // entirely when the window is hidden: the timer is offscreen, and the
+  // next interval tick after un-hide refreshes it within 500 ms.
   useEffect(() => {
     let interval: number | undefined;
 
-    if (recordingStatus === 'recording' || recordingStatus === 'paused') {
+    const isTimingRecording =
+      recordingStatus === 'recording' || recordingStatus === 'paused';
+
+    if (isTimingRecording && activity !== 'hidden') {
       interval = window.setInterval(async () => {
         try {
           const duration = await recordingService.getRecordingDuration();
@@ -322,15 +332,15 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
         } catch (error) {
           logger.error("Failed to get recording duration:", error);
         }
-      }, 100);
-    } else {
+      }, 500);
+    } else if (!isTimingRecording) {
       setRecordingDuration(0);
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [recordingStatus, recordingService]);
+  }, [recordingStatus, recordingService, activity]);
 
   const selectedSession = findSessionById(sessions, selectedId);
 
