@@ -142,6 +142,8 @@ describe('useTranscriptViewer', () => {
           transcriptionStatsService: {} as any,
           settingsService: {} as any,
           compressionService: {} as any,
+          audioCueService: {} as any,
+          keyboardShortcutsService: {} as any,
         },
       }
     );

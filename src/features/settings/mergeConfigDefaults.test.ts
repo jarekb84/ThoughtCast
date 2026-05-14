@@ -43,4 +43,47 @@ describe("mergeConfigDefaults", () => {
     mergeConfigDefaults(input);
     expect(JSON.stringify(input)).toBe(before);
   });
+
+  it("fills keyboard shortcut defaults when section is missing", () => {
+    const merged = mergeConfigDefaults({ whisperPath: "/x" });
+    expect(merged.keyboardShortcuts.recordShortcut).toBe("F1");
+    expect(merged.keyboardShortcuts.cancelShortcut).toBe("Escape");
+    expect(merged.keyboardShortcuts.triggerMode).toBe("toggle");
+  });
+
+  it("preserves provided keyboard shortcut overrides", () => {
+    const merged = mergeConfigDefaults({
+      keyboardShortcuts: {
+        recordShortcut: "Alt+R",
+        cancelShortcut: "Alt+X",
+        triggerMode: "push-to-talk",
+      },
+    });
+    expect(merged.keyboardShortcuts.recordShortcut).toBe("Alt+R");
+    expect(merged.keyboardShortcuts.cancelShortcut).toBe("Alt+X");
+    expect(merged.keyboardShortcuts.triggerMode).toBe("push-to-talk");
+  });
+
+  it("fills audio feedback defaults when section is missing", () => {
+    const merged = mergeConfigDefaults({ whisperPath: "/x" });
+    expect(merged.audioFeedback.enabled).toBe(true);
+    expect(merged.audioFeedback.volume).toBeCloseTo(0.7);
+    expect(merged.audioFeedback.startCuePath).toBe("");
+  });
+
+  it("preserves provided audio feedback overrides", () => {
+    const merged = mergeConfigDefaults({
+      audioFeedback: {
+        enabled: false,
+        volume: 0.25,
+        startCuePath: "/custom/s.wav",
+        stopCuePath: "",
+        readyCuePath: "/custom/r.wav",
+      },
+    });
+    expect(merged.audioFeedback.enabled).toBe(false);
+    expect(merged.audioFeedback.volume).toBeCloseTo(0.25);
+    expect(merged.audioFeedback.startCuePath).toBe("/custom/s.wav");
+    expect(merged.audioFeedback.readyCuePath).toBe("/custom/r.wav");
+  });
 });

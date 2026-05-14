@@ -1,6 +1,12 @@
 mod app_menu;
+mod audio_cues;
 mod recording;
+mod shortcuts;
 
+use audio_cues::{
+    default_cue_path, initialize_default_cues, play_cue_blocking, resolve_cue_path,
+    validate_audio_file, AudioFileValidation, CueType,
+};
 use recording::{
     estimate_transcription_time, extract_transcription_stats, new_shared_progress,
     request_cancel_batch, AppConfig, BatchCompleteEvent, BatchEventEmitter, BatchProgress,
@@ -8,6 +14,10 @@ use recording::{
     SessionIndex, SharedBatchProgress, SharedRecordingState, StorageStats,
     TranscriptionCompleteEvent, TranscriptionErrorEvent, TranscriptionEstimate,
     TranscriptionResult,
+};
+use shortcuts::{
+    register_cancel_shortcut, register_record_shortcut, unregister_cancel_shortcut,
+    unregister_record_shortcut,
 };
 use std::sync::{Arc, Mutex};
 use tauri::{Emitter, Manager, State};
@@ -233,6 +243,77 @@ fn get_compression_progress(state: State<AppState>) -> Result<BatchProgress, Str
     Ok(guard.clone())
 }
 
+#[tauri::command]
+fn play_audio_cue(cue: CueType) -> Result<(), String> {
+    // Resolve config + path on each call so the user's edits take effect
+    // without a restart. Cue failures are non-fatal: we log and swallow.
+    let config = match recording::load_config() {
+        Ok(c) => c,
+        Err(e) => {
+            log::warn!("play_audio_cue: failed to load config, using defaults: {}", e);
+            AppConfig::default()
+        }
+    };
+
+    if !config.audio_feedback.enabled {
+        return Ok(());
+    }
+
+    let path = match resolve_cue_path(cue, &config.audio_feedback) {
+        Ok(p) => p,
+        Err(e) => {
+            log::warn!("play_audio_cue: cue path unresolvable ({}), skipping", e);
+            return Ok(());
+        }
+    };
+
+    if let Err(e) = play_cue_blocking(&path, config.audio_feedback.volume) {
+        log::warn!("play_audio_cue: playback failed ({}), skipping", e);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn preview_audio_file(path: String, volume: f32) -> Result<(), String> {
+    // Preview button in Settings — plays whichever file the user has currently
+    // typed/picked, regardless of whether it's saved into config yet.
+    play_cue_blocking(std::path::Path::new(&path), volume)
+}
+
+#[tauri::command]
+fn validate_audio_cue_file(path: String) -> Result<AudioFileValidation, String> {
+    Ok(validate_audio_file(std::path::Path::new(&path)))
+}
+
+#[tauri::command]
+fn get_default_cue_path_command(cue: CueType) -> Result<String, String> {
+    let path = default_cue_path(cue)?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn apply_keyboard_shortcut(app: tauri::AppHandle, accelerator: String) -> Result<(), String> {
+    register_record_shortcut(&app, &accelerator)
+}
+
+#[tauri::command]
+fn clear_keyboard_shortcut(app: tauri::AppHandle) -> Result<(), String> {
+    unregister_record_shortcut(&app)
+}
+
+#[tauri::command]
+fn apply_cancel_shortcut_command(
+    app: tauri::AppHandle,
+    accelerator: String,
+) -> Result<(), String> {
+    register_cancel_shortcut(&app, &accelerator)
+}
+
+#[tauri::command]
+fn clear_cancel_shortcut_command(app: tauri::AppHandle) -> Result<(), String> {
+    unregister_cancel_shortcut(&app)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   let app_state = AppState {
@@ -242,6 +323,7 @@ pub fn run() {
 
   tauri::Builder::default()
     .plugin(tauri_plugin_dialog::init())
+    .plugin(tauri_plugin_global_shortcut::Builder::new().build())
     .manage(app_state)
     .on_menu_event(|app, event| app_menu::handle_menu_event(app, event))
     .setup(|app| {
@@ -258,6 +340,27 @@ pub fn run() {
 
       // Initialize storage directory
       recording::get_storage_dir()?;
+
+      // Audio cues: copy bundled defaults into the user-editable sounds folder
+      // on first launch (idempotent — won't overwrite user edits).
+      if let Err(e) = initialize_default_cues(app.handle()) {
+          log::warn!("Failed to initialize default audio cues: {}", e);
+      }
+
+      // Register the user's saved record shortcut so it works the moment the
+      // app launches, before any React code mounts. Failures are non-fatal —
+      // the user can still record via the in-app button.
+      match recording::load_config() {
+          Ok(config) => {
+              let accel = &config.keyboard_shortcuts.record_shortcut;
+              if !accel.trim().is_empty() {
+                  if let Err(e) = register_record_shortcut(app.handle(), accel) {
+                      log::warn!("Failed to register record shortcut '{}': {}", accel, e);
+                  }
+              }
+          }
+          Err(e) => log::warn!("Skipping shortcut registration — config load failed: {}", e),
+      }
 
       // Best-effort: heal any session-index / disk drift left over by an
       // interrupted compression run from a previous session.
@@ -324,7 +427,15 @@ pub fn run() {
         get_storage_stats,
         start_compression_batch,
         cancel_compression_batch,
-        get_compression_progress
+        get_compression_progress,
+        play_audio_cue,
+        preview_audio_file,
+        validate_audio_cue_file,
+        get_default_cue_path_command,
+        apply_keyboard_shortcut,
+        clear_keyboard_shortcut,
+        apply_cancel_shortcut_command,
+        clear_cancel_shortcut_command
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

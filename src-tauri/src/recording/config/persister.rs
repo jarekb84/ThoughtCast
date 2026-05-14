@@ -41,6 +41,7 @@ mod tests {
                 compress_old_recordings_enabled: false,
                 compress_old_recordings_older_than_days: 14,
             },
+            ..AppConfig::default()
         };
 
         let json = serde_json::to_string_pretty(&config).unwrap();

@@ -2,6 +2,8 @@ import {
   AppConfig,
   DEFAULT_APP_CONFIG,
   AudioCompressionConfig,
+  AudioFeedbackConfig,
+  KeyboardShortcutsConfig,
 } from "./appConfig";
 
 /**
@@ -21,6 +23,12 @@ export function mergeConfigDefaults(
   const compressionPartial = (partial.audioCompression ?? {}) as Partial<
     AudioCompressionConfig
   >;
+  const shortcutsPartial = (partial.keyboardShortcuts ?? {}) as Partial<
+    KeyboardShortcutsConfig
+  >;
+  const feedbackPartial = (partial.audioFeedback ?? {}) as Partial<
+    AudioFeedbackConfig
+  >;
 
   return {
     whisperPath: partial.whisperPath ?? DEFAULT_APP_CONFIG.whisperPath,
@@ -37,6 +45,32 @@ export function mergeConfigDefaults(
       compressOldRecordingsOlderThanDays:
         compressionPartial.compressOldRecordingsOlderThanDays ??
         DEFAULT_APP_CONFIG.audioCompression.compressOldRecordingsOlderThanDays,
+    },
+    keyboardShortcuts: {
+      recordShortcut:
+        shortcutsPartial.recordShortcut ??
+        DEFAULT_APP_CONFIG.keyboardShortcuts.recordShortcut,
+      cancelShortcut:
+        shortcutsPartial.cancelShortcut ??
+        DEFAULT_APP_CONFIG.keyboardShortcuts.cancelShortcut,
+      triggerMode:
+        shortcutsPartial.triggerMode ??
+        DEFAULT_APP_CONFIG.keyboardShortcuts.triggerMode,
+    },
+    audioFeedback: {
+      enabled:
+        feedbackPartial.enabled ?? DEFAULT_APP_CONFIG.audioFeedback.enabled,
+      volume:
+        feedbackPartial.volume ?? DEFAULT_APP_CONFIG.audioFeedback.volume,
+      startCuePath:
+        feedbackPartial.startCuePath ??
+        DEFAULT_APP_CONFIG.audioFeedback.startCuePath,
+      stopCuePath:
+        feedbackPartial.stopCuePath ??
+        DEFAULT_APP_CONFIG.audioFeedback.stopCuePath,
+      readyCuePath:
+        feedbackPartial.readyCuePath ??
+        DEFAULT_APP_CONFIG.audioFeedback.readyCuePath,
     },
   };
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Session,
   RecordingStatus,
@@ -10,6 +10,7 @@ import {
 } from '../api';
 import { listen } from '@tauri-apps/api/event';
 import { logger } from '../shared/utils/logger';
+import { useRecordingCues } from '../features/audio-feedback/useRecordingCues';
 
 /**
  * Determines appropriate status message based on recording result
@@ -55,6 +56,7 @@ export function handleTranscriptionComplete(
     setRecordingStatus: (status: RecordingStatus) => void;
     setIsProcessing: (processing: boolean) => void;
     loadSessions: () => Promise<void>;
+    playReadyCue: () => void;
   }
 ): void {
   logger.info('Transcription completed:', session.id);
@@ -69,6 +71,11 @@ export function handleTranscriptionComplete(
 
   // Reload sessions to show updated transcript
   callbacks.loadSessions();
+
+  // Fire-and-forget "ready" cue — advisory audio feedback that the transcript
+  // is now on the clipboard. Failures here are non-fatal by design (handled
+  // in the audio_cues Rust module).
+  callbacks.playReadyCue();
 
   // Reset status after delay
   setTimeout(() => callbacks.setStatus('Ready to record'), 5000);
@@ -104,6 +111,12 @@ interface RecordingWorkflowState {
   sessions: Session[];
   selectedId: string | null;
   recordingStatus: RecordingStatus;
+  /**
+   * Live recording status as a ref, for consumers like the global-shortcut hook
+   * that need to read the latest value from inside long-lived event listeners
+   * without re-subscribing on every status change.
+   */
+  recordingStatusRef: React.RefObject<RecordingStatus>;
   isProcessing: boolean;
   recordingDuration: number;
   status: string;
@@ -131,12 +144,20 @@ interface RecordingWorkflowActions {
  */
 export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkflowActions {
   const { sessionService, recordingService } = useApi();
+  const cues = useRecordingCues();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [recordingStatus, setRecordingStatus] = useState<RecordingStatus>('idle');
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [status, setStatus] = useState("Ready to record");
+
+  // Keep a live mirror of recordingStatus that long-lived listeners (e.g. the
+  // global-shortcut hook) can read at event-fire time without re-subscribing.
+  const recordingStatusRef = useRef<RecordingStatus>(recordingStatus);
+  useEffect(() => {
+    recordingStatusRef.current = recordingStatus;
+  }, [recordingStatus]);
 
   const loadSessions = useCallback(async () => {
     try {
@@ -156,6 +177,10 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
 
   const handleStartRecording = useCallback(async () => {
     try {
+      // The start cue is blocking and must finish before microphone capture
+      // begins, so the cue never bleeds into the recorded waveform (PRD edge
+      // case 5). Cue failure does not block recording.
+      await cues.playStart();
       await recordingService.startRecording();
       setRecordingStatus('recording');
       setStatus("⏺️ Recording...");
@@ -163,7 +188,7 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
       logger.error("Failed to start recording:", error);
       setStatus(`❌ Error: ${error}`);
     }
-  }, [recordingService]);
+  }, [recordingService, cues]);
 
   const handlePauseRecording = useCallback(async () => {
     try {
@@ -202,6 +227,12 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
 
   const handleStopRecording = useCallback(async () => {
     try {
+      // Stop cue fires *first*, on user intent, so the audible feedback is
+      // instant rather than gated behind the WAV-save round-trip. Capture is
+      // also winding down on the Rust side in parallel — there is no waveform
+      // pollution risk because mic capture stops the moment stopRecording
+      // executes, before the cue's first sample can reach the mic.
+      cues.playStop();
       setRecordingStatus('processing');
       setIsProcessing(true);
       setStatus("🔄 Saving audio and starting transcription...");
@@ -221,7 +252,7 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
       setRecordingStatus('idle');
       setIsProcessing(false);
     }
-  }, [recordingService, loadSessions]);
+  }, [recordingService, loadSessions, cues]);
 
   // Load sessions on mount
   useEffect(() => {
@@ -237,6 +268,7 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
         setRecordingStatus,
         setIsProcessing,
         loadSessions,
+        playReadyCue: cues.playReady,
       };
 
       // Listen for successful transcription completion
@@ -306,6 +338,7 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
     sessions,
     selectedId,
     recordingStatus,
+    recordingStatusRef,
     isProcessing,
     recordingDuration,
     status,

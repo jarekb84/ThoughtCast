@@ -19,6 +19,14 @@ import {
   ICompressionService,
   TauriCompressionService,
 } from '../features/compression/CompressionService';
+import {
+  IAudioCueService,
+  TauriAudioCueService,
+} from '../features/audio-feedback/AudioCueService';
+import {
+  IKeyboardShortcutsService,
+  TauriKeyboardShortcutsService,
+} from '../features/keyboard-shortcuts/KeyboardShortcutsService';
 
 /**
  * API services available to the application
@@ -31,6 +39,8 @@ export interface ApiServices {
   transcriptionStatsService: ITranscriptionStatsService;
   settingsService: ISettingsService;
   compressionService: ICompressionService;
+  audioCueService: IAudioCueService;
+  keyboardShortcutsService: IKeyboardShortcutsService;
 }
 
 /**
@@ -78,6 +88,8 @@ export function ApiProvider({ children, services }: ApiProviderProps) {
       transcriptionStatsService: new TauriTranscriptionStatsService(),
       settingsService: new TauriSettingsService(),
       compressionService: new TauriCompressionService(),
+      audioCueService: new TauriAudioCueService(),
+      keyboardShortcutsService: new TauriKeyboardShortcutsService(),
     }),
     []
   );
