@@ -28,6 +28,9 @@ pub fn start_capture(state: SharedRecordingState) -> Result<(), String> {
     state_guard.pause_start_time = None;
     state_guard.total_paused_duration_ms = 0;
     state_guard.status = RecordingStatus::Recording;
+    // Clear any rate left over from a prior capture — the audio thread will
+    // populate it from the device's `default_input_config()` once it starts.
+    state_guard.sample_rate = None;
 
     // Clone references for the recording thread
     let samples_clone = Arc::clone(&state_guard.samples);
@@ -66,6 +69,17 @@ fn run_audio_capture_loop(
     let config = device
         .default_input_config()
         .map_err(|e| format!("Failed to get default input config: {}", e))?;
+
+    // Publish the device's sample rate so the WAV writer can label the file
+    // accurately. Without this, samples captured at the device's native rate
+    // (often 48 kHz) get labelled 44.1 kHz, time-stretching playback and
+    // pushing the audio's apparent tail past whatever duration the chunked
+    // transcription planner uses — meaning the last ~9% of the recording
+    // never gets transcribed.
+    let device_sample_rate = config.sample_rate().0;
+    if let Ok(mut state_guard) = state.lock() {
+        state_guard.sample_rate = Some(device_sample_rate);
+    }
 
     let samples_for_stream = Arc::clone(&samples);
     let state_for_stream = Arc::clone(&state);

@@ -196,8 +196,46 @@ fn copy_transcript_to_clipboard(session_id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn retranscribe_session(session_id: String) -> Result<String, String> {
-    recording::retranscribe_session(&session_id)
+fn retranscribe_session(
+    state: State<AppState>,
+    app: tauri::AppHandle,
+    session_id: String,
+) -> Result<Session, String> {
+    let recording_state = Arc::clone(&state.inner().recording);
+
+    // Sync prep: mark the session as Processing... and return immediately so
+    // the UI can light up the existing transcribing view. Heavy lifting
+    // (decode + Whisper) runs on the background thread spawned below.
+    let session = recording::start_retranscription(&session_id)?;
+
+    recording::orchestrate_async_retranscription(
+        recording_state,
+        session_id,
+        move |result| match result {
+            TranscriptionResult::Success(updated_session) => {
+                let _ = app.emit(
+                    "transcription-complete",
+                    TranscriptionCompleteEvent {
+                        session: updated_session,
+                    },
+                );
+            }
+            TranscriptionResult::Progress(progress) => {
+                let _ = app.emit("transcription-progress", progress);
+            }
+            TranscriptionResult::Compressed(compression_event) => {
+                let _ = app.emit("session-audio-compressed", compression_event);
+            }
+            TranscriptionResult::Error { session_id, error } => {
+                let _ = app.emit(
+                    "transcription-error",
+                    TranscriptionErrorEvent { session_id, error },
+                );
+            }
+        },
+    );
+
+    Ok(session)
 }
 
 #[tauri::command]

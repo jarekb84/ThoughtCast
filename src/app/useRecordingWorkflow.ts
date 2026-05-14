@@ -130,6 +130,7 @@ interface RecordingWorkflowActions {
   handleResumeRecording: () => Promise<void>;
   handleCancelRecording: () => Promise<void>;
   handleStopRecording: () => Promise<void>;
+  handleRetranscribe: (sessionId: string) => Promise<void>;
   setSelectedId: (id: string | null) => void;
   loadSessions: () => Promise<void>;
 }
@@ -144,7 +145,7 @@ interface RecordingWorkflowActions {
  * - Status message management
  */
 export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkflowActions {
-  const { sessionService, recordingService } = useApi();
+  const { sessionService, recordingService, transcriptService } = useApi();
   const cues = useRecordingCues();
   const activity = useDocumentActivity();
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -226,6 +227,31 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
       setStatus(`❌ Error: ${error}`);
     }
   }, [recordingService]);
+
+  const handleRetranscribe = useCallback(async (sessionId: string) => {
+    // Drive the existing top-bar transcribing UI by flipping the same flags
+    // `handleStopRecording` flips. The backend's async retranscribe pipeline
+    // emits the same `transcription-complete` / `-error` events as a fresh
+    // recording, so the existing event listeners (below) clear these flags
+    // automatically when the work finishes — no separate state machine.
+    try {
+      setRecordingStatus('processing');
+      setIsProcessing(true);
+      setStatus("🔄 Re-transcribing audio...");
+
+      await transcriptService.retranscribe(sessionId);
+
+      // Pick up the session row's `preview: "Processing..."` marker so the
+      // session list reflects the in-flight state immediately, instead of
+      // waiting for the next event to refresh it.
+      await loadSessions();
+    } catch (error) {
+      logger.error("Failed to start retranscription:", error);
+      setStatus(`❌ Error: ${error}`);
+      setRecordingStatus('idle');
+      setIsProcessing(false);
+    }
+  }, [transcriptService, loadSessions]);
 
   const handleStopRecording = useCallback(async () => {
     try {
@@ -358,6 +384,7 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
     handleResumeRecording,
     handleCancelRecording,
     handleStopRecording,
+    handleRetranscribe,
     setSelectedId,
     loadSessions,
   };

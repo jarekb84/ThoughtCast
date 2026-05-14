@@ -166,7 +166,6 @@ describe('useTranscriptViewer', () => {
     expect(result.current.transcript).toBeNull();
     expect(result.current.transcriptError).toBeNull();
     expect(result.current.isLoadingTranscript).toBe(false);
-    expect(result.current.isRetranscribing).toBe(false);
     expect(result.current.isCopying).toBe(false);
     expect(result.current.copyButtonText).toBe('Copy to Clipboard');
   });
@@ -339,94 +338,32 @@ describe('useTranscriptViewer', () => {
     expect(mockClipboardService.copyTranscriptToClipboard).not.toHaveBeenCalled();
   });
 
-  it('should retranscribe successfully', async () => {
-    mockTranscriptService.loadTranscript.mockResolvedValue('Original transcript');
-    mockTranscriptService.retranscribe.mockResolvedValue('New transcript');
+  it('should reload transcript when session preview changes (e.g. after retranscribe)', async () => {
+    mockTranscriptService.loadTranscript.mockResolvedValueOnce('Original transcript');
 
-    const { result } = renderHook(
-      () => useTranscriptViewer(sessionWithTranscript, mockOnSessionsChanged),
-      { wrapper }
+    const { result, rerender } = renderHook(
+      ({ session }: { session: Session | null }) =>
+        useTranscriptViewer(session, mockOnSessionsChanged),
+      { wrapper, initialProps: { session: sessionWithTranscript } }
     );
 
     await waitFor(() => {
       expect(result.current.transcript).toBe('Original transcript');
     }, { timeout: 10000 });
 
-    await act(async () => {
-      await result.current.handleRetranscribe();
-    });
-
-    expect(mockTranscriptService.retranscribe).toHaveBeenCalledWith('session-1');
-    expect(result.current.transcript).toBe('New transcript');
-    expect(mockOnSessionsChanged).toHaveBeenCalled();
-    expect(result.current.isRetranscribing).toBe(false);
-    expect(result.current.isLoadingTranscript).toBe(false);
-  });
-
-  it('should handle retranscribe error', async () => {
-    mockTranscriptService.loadTranscript.mockResolvedValue('Original transcript');
-    mockTranscriptService.retranscribe.mockRejectedValue(new Error('Retranscribe failed'));
-
-    const { result } = renderHook(
-      () => useTranscriptViewer(sessionWithTranscript, mockOnSessionsChanged),
-      { wrapper }
-    );
-
-    await waitFor(() => {
-      expect(result.current.transcript).toBe('Original transcript');
-    }, { timeout: 10000 });
-
-    await act(async () => {
-      await result.current.handleRetranscribe();
-    });
-
-    expect(result.current.transcript).toBeNull();
-    expect(result.current.transcriptError).toBe('Retranscription failed: Retranscribe failed');
-    expect(result.current.isRetranscribing).toBe(false);
-    expect(result.current.isLoadingTranscript).toBe(false);
-  });
-
-  it('should not retranscribe if no session selected', async () => {
-    const { result } = renderHook(
-      () => useTranscriptViewer(null, mockOnSessionsChanged),
-      { wrapper }
-    );
-
-    await act(async () => {
-      await result.current.handleRetranscribe();
-    });
-
-    expect(mockTranscriptService.retranscribe).not.toHaveBeenCalled();
-  });
-
-  it('should set loading states during retranscribe', async () => {
-    mockTranscriptService.loadTranscript.mockResolvedValue('Original transcript');
-    mockTranscriptService.retranscribe.mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve('New transcript'), 100))
-    );
-
-    const { result } = renderHook(
-      () => useTranscriptViewer(sessionWithTranscript, mockOnSessionsChanged),
-      { wrapper }
-    );
-
-    await waitFor(() => {
-      expect(result.current.transcript).toBe('Original transcript');
-    }, { timeout: 10000 });
-
-    act(() => {
-      result.current.handleRetranscribe();
+    // Simulate the post-retranscribe state: same id/transcript_path, but
+    // the preview flipped to the new prefix. The hook should refetch the
+    // transcript file rather than keep showing the stale loaded string.
+    mockTranscriptService.loadTranscript.mockResolvedValueOnce('Updated transcript');
+    rerender({
+      session: { ...sessionWithTranscript, preview: 'Updated transcript prefix...' },
     });
 
     await waitFor(() => {
-      expect(result.current.isRetranscribing).toBe(true);
-      expect(result.current.isLoadingTranscript).toBe(true);
+      expect(result.current.transcript).toBe('Updated transcript');
     }, { timeout: 10000 });
 
-    await waitFor(() => {
-      expect(result.current.isRetranscribing).toBe(false);
-      expect(result.current.isLoadingTranscript).toBe(false);
-    }, { timeout: 10000 });
+    expect(mockTranscriptService.loadTranscript).toHaveBeenCalledTimes(2);
   });
 
   it('should track copying state', async () => {

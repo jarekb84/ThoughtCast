@@ -4,4 +4,4 @@ pub mod writer;
 
 pub use capture::start_capture;
 pub use level_calculator::get_audio_levels;
-pub use writer::write_wav_file;
+pub use writer::{read_wav_duration_seconds, write_wav_file};
