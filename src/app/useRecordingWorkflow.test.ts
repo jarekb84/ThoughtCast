@@ -200,6 +200,9 @@ describe('useRecordingWorkflow', () => {
   const mockRecordingService = {
     startRecording: vi.fn(),
     stopRecording: vi.fn(),
+    pauseRecording: vi.fn(),
+    resumeRecording: vi.fn(),
+    cancelRecording: vi.fn(),
     getRecordingDuration: vi.fn(),
   };
 
@@ -250,6 +253,9 @@ describe('useRecordingWorkflow', () => {
     mockSessionService.getSessions.mockResolvedValue({ sessions: mockSessions });
     mockRecordingService.startRecording.mockClear();
     mockRecordingService.stopRecording.mockClear();
+    mockRecordingService.pauseRecording.mockClear();
+    mockRecordingService.resumeRecording.mockClear();
+    mockRecordingService.cancelRecording.mockClear();
     mockRecordingService.getRecordingDuration.mockClear();
   });
 
@@ -475,5 +481,158 @@ describe('useRecordingWorkflow', () => {
     });
 
     expect(result.current.sessions).toEqual(newSessions);
+  });
+
+  // Regression tests for the "paused recording disappears" bug: a background
+  // transcription event firing for an *earlier* session must not yank the
+  // user out of their in-flight recording/paused state.
+  describe('stale transcription events during a new recording', () => {
+    const staleCompletedSession: Session = {
+      id: 'older-session',
+      timestamp: '2024-01-01T00:00:00Z',
+      duration: 10,
+      audio_path: '/path/to/older.wav',
+      transcript_path: '/path/to/older.txt',
+      preview: 'Older transcript',
+      clipboard_copied: true,
+    };
+
+    it('does not reset a paused recording when a stale completion arrives', async () => {
+      mockRecordingService.startRecording.mockResolvedValue(undefined);
+      mockRecordingService.pauseRecording.mockResolvedValue(undefined);
+
+      const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.sessions).toEqual(mockSessions);
+      });
+
+      // Flush so the event listeners are wired up before we emit.
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        await result.current.handleStartRecording();
+      });
+      await act(async () => {
+        await result.current.handlePauseRecording();
+      });
+
+      expect(result.current.recordingStatus).toBe('paused');
+      const statusWhilePaused = result.current.status;
+
+      // Simulate a *prior* session's transcription completing in the
+      // background while the user is paused.
+      await act(async () => {
+        emitMockEvent('transcription-complete', { session: staleCompletedSession });
+        await Promise.resolve();
+      });
+
+      expect(result.current.recordingStatus).toBe('paused');
+      expect(result.current.isProcessing).toBe(false);
+      expect(result.current.status).toBe(statusWhilePaused);
+    });
+
+    it('does not reset an active recording when a stale completion arrives', async () => {
+      mockRecordingService.startRecording.mockResolvedValue(undefined);
+
+      const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.sessions).toEqual(mockSessions);
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        await result.current.handleStartRecording();
+      });
+
+      expect(result.current.recordingStatus).toBe('recording');
+
+      await act(async () => {
+        emitMockEvent('transcription-complete', { session: staleCompletedSession });
+        await Promise.resolve();
+      });
+
+      expect(result.current.recordingStatus).toBe('recording');
+      expect(result.current.isProcessing).toBe(false);
+    });
+
+    it('does not reset a paused recording when a stale transcription error arrives', async () => {
+      mockRecordingService.startRecording.mockResolvedValue(undefined);
+      mockRecordingService.pauseRecording.mockResolvedValue(undefined);
+
+      const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.sessions).toEqual(mockSessions);
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        await result.current.handleStartRecording();
+      });
+      await act(async () => {
+        await result.current.handlePauseRecording();
+      });
+
+      const statusWhilePaused = result.current.status;
+
+      await act(async () => {
+        emitMockEvent('transcription-error', {
+          session_id: staleCompletedSession.id,
+          error: 'whisper failed',
+        });
+        await Promise.resolve();
+      });
+
+      expect(result.current.recordingStatus).toBe('paused');
+      expect(result.current.isProcessing).toBe(false);
+      expect(result.current.status).toBe(statusWhilePaused);
+    });
+
+    it('still refreshes the session list when a stale completion arrives', async () => {
+      mockRecordingService.startRecording.mockResolvedValue(undefined);
+      mockRecordingService.pauseRecording.mockResolvedValue(undefined);
+
+      const refreshedSessions = [...mockSessions, staleCompletedSession];
+      mockSessionService.getSessions
+        .mockResolvedValueOnce({ sessions: mockSessions })
+        .mockResolvedValue({ sessions: refreshedSessions });
+
+      const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.sessions).toEqual(mockSessions);
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      await act(async () => {
+        await result.current.handleStartRecording();
+      });
+      await act(async () => {
+        await result.current.handlePauseRecording();
+      });
+
+      await act(async () => {
+        emitMockEvent('transcription-complete', { session: staleCompletedSession });
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(result.current.sessions).toEqual(refreshedSessions);
+      });
+      expect(result.current.recordingStatus).toBe('paused');
+    });
   });
 });
