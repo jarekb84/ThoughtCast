@@ -49,6 +49,15 @@ export function autoSelectFirstSession(
 
 /**
  * Handle transcription completion event
+ *
+ * Background transcriptions (a prior recording or a user-triggered retranscribe)
+ * can finish while the user is already in the middle of a *new* recording —
+ * including paused. Without `getRecordingStatus`, this handler would
+ * unconditionally flip `recordingStatus` to `'idle'` and wipe the in-progress
+ * recording out of the UI even though the backend is still capturing it. We
+ * gate the workflow-state mutations on actually being in `'processing'`; if
+ * we're not, the event corresponds to background work and we only refresh
+ * the session list (so the completed transcript appears in the sidebar).
  */
 export function handleTranscriptionComplete(
   session: Session,
@@ -58,9 +67,22 @@ export function handleTranscriptionComplete(
     setIsProcessing: (processing: boolean) => void;
     loadSessions: () => Promise<void>;
     playReadyCue: () => void;
+    getRecordingStatus: () => RecordingStatus;
   }
 ): void {
   logger.info('Transcription completed:', session.id);
+
+  // Always refresh the session list so the completed transcript shows up,
+  // even if we shouldn't touch the recording state machine.
+  callbacks.loadSessions();
+
+  const currentStatus = callbacks.getRecordingStatus();
+  if (currentStatus !== 'processing') {
+    // A stale completion arrived while the user has already moved on (idle,
+    // recording, or paused). Suppress the workflow reset and the audio cue —
+    // playing it through speakers would bleed into the active mic capture.
+    return;
+  }
 
   // Determine and set appropriate status
   const resultStatus = determineRecordingStatus(session);
@@ -69,9 +91,6 @@ export function handleTranscriptionComplete(
   // Update recording status to idle
   callbacks.setRecordingStatus('idle');
   callbacks.setIsProcessing(false);
-
-  // Reload sessions to show updated transcript
-  callbacks.loadSessions();
 
   // Fire-and-forget "ready" cue — advisory audio feedback that the transcript
   // is now on the clipboard. Failures here are non-fatal by design (handled
@@ -84,6 +103,10 @@ export function handleTranscriptionComplete(
 
 /**
  * Handle transcription error event
+ *
+ * Mirrors `handleTranscriptionComplete`'s gating: an error event from a
+ * background transcription must not clobber a recording the user has already
+ * started afterward. See that function's docstring for details.
  */
 export function handleTranscriptionError(
   sessionId: string,
@@ -93,16 +116,23 @@ export function handleTranscriptionError(
     setRecordingStatus: (status: RecordingStatus) => void;
     setIsProcessing: (processing: boolean) => void;
     loadSessions: () => Promise<void>;
+    getRecordingStatus: () => RecordingStatus;
   }
 ): void {
   logger.error('Transcription failed for session:', sessionId, error);
 
+  // Always refresh the session list so the error state shows up even if we
+  // don't touch the recording workflow.
+  callbacks.loadSessions();
+
+  const currentStatus = callbacks.getRecordingStatus();
+  if (currentStatus !== 'processing') {
+    return;
+  }
+
   callbacks.setStatus(`⚠️ Recording saved (transcription failed: ${error})`);
   callbacks.setRecordingStatus('idle');
   callbacks.setIsProcessing(false);
-
-  // Reload sessions to show updated state
-  callbacks.loadSessions();
 
   // Reset status after delay
   setTimeout(() => callbacks.setStatus('Ready to record'), 5000);
@@ -290,13 +320,18 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
   // Listen for transcription events
   useEffect(() => {
     const setupListeners = async () => {
-      // Create callback bundle for event handlers
+      // Create callback bundle for event handlers. `getRecordingStatus` is
+      // a thunk over the live status ref so handlers see the current state
+      // at event-fire time, not the state captured when this listener was
+      // first installed — preventing a stale background transcription event
+      // from clobbering an in-progress recording.
       const callbacks = {
         setStatus,
         setRecordingStatus,
         setIsProcessing,
         loadSessions,
         playReadyCue: cues.playReady,
+        getRecordingStatus: () => recordingStatusRef.current,
       };
 
       // Listen for successful transcription completion
