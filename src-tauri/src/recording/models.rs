@@ -33,6 +33,79 @@ pub struct Session {
     pub chunking_used_fallback: Option<bool>,
 }
 
+impl Session {
+    /// Session row for a recording the user just pressed Stop on. Transcription
+    /// has not run yet — preview shows the "Processing..." sentinel the
+    /// frontend keys off to render the transcribing UI.
+    ///
+    /// All transcription / chunking telemetry starts at `None` and is filled in
+    /// by `process_transcription_async` when Whisper finishes.
+    pub fn new_for_processing(
+        id: String,
+        timestamp: String,
+        audio_path: String,
+        duration: f64,
+    ) -> Self {
+        Self {
+            id,
+            timestamp,
+            audio_path,
+            duration,
+            preview: PROCESSING_PREVIEW.to_string(),
+            transcript_path: String::new(),
+            clipboard_copied: false,
+            transcription_time_seconds: None,
+            model_path: None,
+            chunking_analysis_seconds: None,
+            chunk_count: None,
+            chunking_used_fallback: None,
+        }
+    }
+
+    /// Session row for an unrecovered / partial recording: an in-flight WAV
+    /// promoted to disk via capture failure or startup crash-recovery scan.
+    /// `preview` is the user-facing message ("audio saved, transcribe
+    /// manually" vs. "recovered from previous session" vs. similar).
+    pub fn new_unrecovered(
+        id: String,
+        timestamp: String,
+        audio_path: String,
+        duration: f64,
+        preview: String,
+    ) -> Self {
+        Self {
+            id,
+            timestamp,
+            audio_path,
+            duration,
+            preview,
+            transcript_path: String::new(),
+            clipboard_copied: false,
+            transcription_time_seconds: None,
+            model_path: None,
+            chunking_analysis_seconds: None,
+            chunk_count: None,
+            chunking_used_fallback: None,
+        }
+    }
+}
+
+/// Sentinel preview value the frontend keys off to render the in-flight
+/// transcribing view. Public so the lifecycle and retranscription paths can
+/// reuse it without re-typing the literal.
+pub const PROCESSING_PREVIEW: &str = "Processing...";
+
+/// User-facing preview for a session that ended via mid-stream capture
+/// failure. Used by both the live failure path and any future tooling that
+/// constructs such rows.
+pub const CAPTURE_FAILURE_PREVIEW: &str =
+    "⚠️ Recording ended unexpectedly — audio saved, transcribe manually";
+
+/// User-facing preview for a session recovered on startup from an orphan
+/// in-flight WAV (previous app run crashed before finalizing).
+pub const RECOVERED_ON_STARTUP_PREVIEW: &str =
+    "♻️ Recovered from previous session — open to transcribe";
+
 /// Index containing all recording sessions
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionIndex {

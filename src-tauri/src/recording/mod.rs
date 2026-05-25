@@ -4,6 +4,7 @@ mod chunking;
 mod compression;
 mod config;
 mod models;
+mod recovery;
 mod session;
 mod state;
 mod statistics;
@@ -43,6 +44,13 @@ pub use utils::{copy_to_clipboard, get_storage_dir};
 
 // Audio level calculation
 pub use audio::get_audio_levels;
+
+// Capture-failure event surface (consumed by the Tauri command layer to
+// forward `recording-capture-failed` events to the frontend).
+pub use audio::RecordingCaptureFailedEvent;
+
+// Startup recovery for in-flight WAVs left behind by a previous crashed run.
+pub use recovery::recover_orphaned_in_flight_recordings;
 
 // Transcription statistics and estimation
 pub use statistics::{estimate_transcription_time, extract_transcription_stats, TranscriptionEstimate};

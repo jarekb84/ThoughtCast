@@ -29,6 +29,7 @@ function App() {
     recordingStatusRef,
     isProcessing,
     recordingDuration,
+    flushedThroughSeconds,
     status,
     selectedSession,
     handleStartRecording,
@@ -86,6 +87,7 @@ function App() {
         recordingStatus={recordingStatus}
         isProcessing={isProcessing}
         recordingDuration={recordingDuration}
+        flushedThroughSeconds={flushedThroughSeconds}
         status={status}
         onStartRecording={handleStartRecording}
         onPauseRecording={handlePauseRecording}

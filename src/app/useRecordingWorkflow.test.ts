@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { determineRecordingStatus, findSessionById, autoSelectFirstSession, useRecordingWorkflow } from './useRecordingWorkflow';
-import { Session } from '../api';
+import { useRecordingWorkflow } from './useRecordingWorkflow';
+import {
+  determineRecordingStatus,
+  findSessionById,
+  autoSelectFirstSession,
+  handleRecordingCaptureFailed,
+} from '../features/recording/workflowEventHandlers';
+import { Session, RecordingCaptureFailedPayload } from '../api';
 import { ApiProvider } from '../api/ApiContext';
 import React from 'react';
 
@@ -190,6 +196,67 @@ describe('autoSelectFirstSession', () => {
   });
 });
 
+describe('handleRecordingCaptureFailed', () => {
+  function makeCallbacks() {
+    const calls = {
+      setStatus: vi.fn(),
+      setRecordingStatus: vi.fn(),
+      setIsProcessing: vi.fn(),
+      setRecordingDuration: vi.fn(),
+      setSelectedId: vi.fn(),
+      loadSessions: vi.fn().mockResolvedValue(undefined),
+    };
+    return calls;
+  }
+
+  const recoveredSession: Session = {
+    id: 'recovered-1',
+    timestamp: '2026-05-17T14:22:00Z',
+    duration: 1985.6,
+    audio_path: 'audio/recovered-1.wav',
+    preview: '⚠️ Recording ended unexpectedly — audio saved, transcribe manually',
+    clipboard_copied: false,
+  };
+
+  it('shows the saved-audio message and selects the recovered session', () => {
+    const cb = makeCallbacks();
+    const payload: RecordingCaptureFailedPayload = {
+      reason: 'Audio stream error: Device disconnected',
+      partial_duration_seconds: 1985.6,
+      recovered_session: recoveredSession,
+    };
+    handleRecordingCaptureFailed(payload, cb);
+
+    expect(cb.setRecordingStatus).toHaveBeenCalledWith('idle');
+    expect(cb.setIsProcessing).toHaveBeenCalledWith(false);
+    expect(cb.setRecordingDuration).toHaveBeenCalledWith(0);
+    expect(cb.setStatus).toHaveBeenCalledTimes(1);
+    const message = cb.setStatus.mock.calls[0][0];
+    expect(message).toContain('Saved');
+    expect(message).toContain('~33m 06s of audio');
+    expect(message).toContain('Device disconnected');
+    expect(cb.setSelectedId).toHaveBeenCalledWith('recovered-1');
+    expect(cb.loadSessions).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the no-audio-recovered message when partial save failed', () => {
+    const cb = makeCallbacks();
+    const payload: RecordingCaptureFailedPayload = {
+      reason: 'No microphone access',
+      partial_duration_seconds: 0,
+      recovered_session: null,
+    };
+    handleRecordingCaptureFailed(payload, cb);
+
+    expect(cb.setRecordingStatus).toHaveBeenCalledWith('idle');
+    expect(cb.setSelectedId).not.toHaveBeenCalled();
+    const message = cb.setStatus.mock.calls[0][0];
+    expect(message).toContain('no audio recovered');
+    expect(message).toContain('No microphone access');
+    expect(cb.loadSessions).toHaveBeenCalledTimes(1);
+  });
+});
+
 // ===== Hook Tests =====
 
 describe('useRecordingWorkflow', () => {
@@ -204,6 +271,8 @@ describe('useRecordingWorkflow', () => {
     resumeRecording: vi.fn(),
     cancelRecording: vi.fn(),
     getRecordingDuration: vi.fn(),
+    getRecordingStatus: vi.fn(),
+    getRecordingFlushedThroughSeconds: vi.fn(),
   };
 
   const mockClipboardService = {
@@ -257,6 +326,15 @@ describe('useRecordingWorkflow', () => {
     mockRecordingService.resumeRecording.mockClear();
     mockRecordingService.cancelRecording.mockClear();
     mockRecordingService.getRecordingDuration.mockClear();
+    mockRecordingService.getRecordingStatus.mockClear();
+    mockRecordingService.getRecordingFlushedThroughSeconds.mockClear();
+    // Default backend status agrees with the frontend's optimistic state so
+    // existing tests don't see spurious drift corrections. Specific
+    // reconciliation tests override this per-case.
+    mockRecordingService.getRecordingStatus.mockResolvedValue('idle');
+    // Streaming-writer trust signal: null while not recording, mock pretends
+    // the writer hasn't flushed anything yet.
+    mockRecordingService.getRecordingFlushedThroughSeconds.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -296,6 +374,10 @@ describe('useRecordingWorkflow', () => {
 
   it('should start recording successfully', async () => {
     mockRecordingService.startRecording.mockResolvedValue(undefined);
+    // Backend mirrors the optimistic frontend transition so the
+    // reconciliation tick (now running while in recording/paused) finds no
+    // drift to correct.
+    mockRecordingService.getRecordingStatus.mockResolvedValue('recording');
     const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
 
     await waitFor(() => {
@@ -346,6 +428,9 @@ describe('useRecordingWorkflow', () => {
     };
 
     mockRecordingService.stopRecording.mockResolvedValue(initialSession);
+    // After stop the backend transitions through processing; the
+    // reconciliation tick no-ops on `'processing'`, so a fixed mock is fine.
+    mockRecordingService.getRecordingStatus.mockResolvedValue('processing');
     const updatedSessions = [...mockSessions, completedSession];
 
     // Return original sessions first, then with processing session, then with completed
@@ -414,6 +499,7 @@ describe('useRecordingWorkflow', () => {
   it('should update recording duration while recording', async () => {
     mockRecordingService.startRecording.mockResolvedValue(undefined);
     mockRecordingService.getRecordingDuration.mockResolvedValue(5.5);
+    mockRecordingService.getRecordingStatus.mockResolvedValue('recording');
 
     const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
 
@@ -500,6 +586,9 @@ describe('useRecordingWorkflow', () => {
     it('does not reset a paused recording when a stale completion arrives', async () => {
       mockRecordingService.startRecording.mockResolvedValue(undefined);
       mockRecordingService.pauseRecording.mockResolvedValue(undefined);
+      // Backend agrees with the optimistic transition so the new
+      // reconciliation tick stays silent during the stale-event scenario.
+      mockRecordingService.getRecordingStatus.mockResolvedValue('paused');
 
       const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
 
@@ -536,6 +625,7 @@ describe('useRecordingWorkflow', () => {
 
     it('does not reset an active recording when a stale completion arrives', async () => {
       mockRecordingService.startRecording.mockResolvedValue(undefined);
+      mockRecordingService.getRecordingStatus.mockResolvedValue('recording');
 
       const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
 
@@ -565,6 +655,7 @@ describe('useRecordingWorkflow', () => {
     it('does not reset a paused recording when a stale transcription error arrives', async () => {
       mockRecordingService.startRecording.mockResolvedValue(undefined);
       mockRecordingService.pauseRecording.mockResolvedValue(undefined);
+      mockRecordingService.getRecordingStatus.mockResolvedValue('paused');
 
       const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
 
@@ -601,6 +692,7 @@ describe('useRecordingWorkflow', () => {
     it('still refreshes the session list when a stale completion arrives', async () => {
       mockRecordingService.startRecording.mockResolvedValue(undefined);
       mockRecordingService.pauseRecording.mockResolvedValue(undefined);
+      mockRecordingService.getRecordingStatus.mockResolvedValue('paused');
 
       const refreshedSessions = [...mockSessions, staleCompletedSession];
       mockSessionService.getSessions
@@ -633,6 +725,161 @@ describe('useRecordingWorkflow', () => {
         expect(result.current.sessions).toEqual(refreshedSessions);
       });
       expect(result.current.recordingStatus).toBe('paused');
+    });
+  });
+
+  // Reconciliation against the backend's authoritative recording status: the
+  // PRD requires that whatever async path drops the frontend out of sync,
+  // backend truth pulls it back. These tests target the polling tick and the
+  // mount-time one-shot.
+  describe('backend status reconciliation', () => {
+    it('restores the recording UI on mount when backend is still capturing', async () => {
+      // Simulate a window reload while a recording was active: backend reports
+      // `'recording'`, frontend starts at `'idle'`. The mount-time
+      // reconciliation should restore the active state.
+      mockRecordingService.getRecordingStatus.mockResolvedValue('recording');
+
+      const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.recordingStatus).toBe('recording');
+        expect(result.current.status).toBe('⏺️ Recording...');
+      });
+    });
+
+    it('restores the paused UI on mount when backend reports paused', async () => {
+      mockRecordingService.getRecordingStatus.mockResolvedValue('paused');
+
+      const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.recordingStatus).toBe('paused');
+        expect(result.current.status).toBe('⏸️ Recording paused');
+      });
+    });
+
+    it('reconciles drift discovered during the active-state tick (paused -> recording)', async () => {
+      // Frontend in `paused`, but the backend has somehow moved to `recording`
+      // (e.g. an out-of-band resume). The 500 ms tick should mirror backend.
+      mockRecordingService.startRecording.mockResolvedValue(undefined);
+      mockRecordingService.pauseRecording.mockResolvedValue(undefined);
+      mockRecordingService.getRecordingDuration.mockResolvedValue(0);
+
+      // Mount agrees with idle, then we transition through start → pause...
+      mockRecordingService.getRecordingStatus.mockResolvedValueOnce('idle');
+      mockRecordingService.getRecordingStatus.mockResolvedValueOnce('paused');
+
+      const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
+      await waitFor(() => {
+        expect(result.current.sessions).toEqual(mockSessions);
+      });
+
+      await act(async () => { await Promise.resolve(); });
+      await act(async () => { await result.current.handleStartRecording(); });
+      await act(async () => { await result.current.handlePauseRecording(); });
+
+      expect(result.current.recordingStatus).toBe('paused');
+
+      // ...and now backend has drifted to `'recording'`. Subsequent polls
+      // should reconcile.
+      mockRecordingService.getRecordingStatus.mockResolvedValue('recording');
+
+      await waitFor(
+        () => {
+          expect(result.current.recordingStatus).toBe('recording');
+          expect(result.current.status).toBe('⏺️ Recording...');
+        },
+        { timeout: 2000 }
+      );
+    });
+
+    it('announces unexpected end when backend goes idle while frontend believes recording', async () => {
+      // The PRD case where capture ended out from under the UI: backend `idle`
+      // while the frontend thinks `recording`. Reconciliation must surface a
+      // warning, not silently pretend capture is still alive.
+      mockRecordingService.startRecording.mockResolvedValue(undefined);
+      mockRecordingService.getRecordingDuration.mockResolvedValue(0);
+      // First poll on mount agrees with idle, second (after start) returns
+      // `'recording'` so the initial tick does not announce. Then backend
+      // drops to `'idle'`.
+      mockRecordingService.getRecordingStatus
+        .mockResolvedValueOnce('idle')
+        .mockResolvedValueOnce('recording')
+        .mockResolvedValue('idle');
+
+      const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
+      await waitFor(() => {
+        expect(result.current.sessions).toEqual(mockSessions);
+      });
+
+      await act(async () => { await Promise.resolve(); });
+      await act(async () => { await result.current.handleStartRecording(); });
+      expect(result.current.recordingStatus).toBe('recording');
+
+      await waitFor(
+        () => {
+          expect(result.current.recordingStatus).toBe('idle');
+          expect(result.current.status).toBe('⚠️ Recording ended unexpectedly');
+        },
+        { timeout: 2000 }
+      );
+    });
+
+    it('handles recording-capture-failed event by resetting state and surfacing a warning', async () => {
+      mockRecordingService.startRecording.mockResolvedValue(undefined);
+      mockRecordingService.getRecordingStatus.mockResolvedValue('recording');
+
+      const recovered: Session = {
+        id: 'recovered-session',
+        timestamp: '2026-05-17T14:22:00Z',
+        duration: 95.0,
+        audio_path: 'audio/recovered-session.wav',
+        preview: '⚠️ Recording ended unexpectedly — audio saved, transcribe manually',
+        clipboard_copied: false,
+      };
+      mockSessionService.getSessions
+        .mockResolvedValueOnce({ sessions: mockSessions })
+        .mockResolvedValue({ sessions: [...mockSessions, recovered] });
+
+      const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
+      await waitFor(() => {
+        expect(result.current.sessions).toEqual(mockSessions);
+      });
+
+      await act(async () => { await Promise.resolve(); });
+      await act(async () => { await result.current.handleStartRecording(); });
+      expect(result.current.recordingStatus).toBe('recording');
+
+      // Backend's audio thread emits the capture-failed event.
+      await act(async () => {
+        emitMockEvent('recording-capture-failed', {
+          reason: 'Audio stream error: Device disconnected',
+          partial_duration_seconds: 95.4,
+          recovered_session: recovered,
+        });
+        await Promise.resolve();
+      });
+
+      await waitFor(() => {
+        expect(result.current.recordingStatus).toBe('idle');
+        expect(result.current.status).toContain('Recording stopped unexpectedly');
+        expect(result.current.status).toContain('Device disconnected');
+        expect(result.current.selectedId).toBe('recovered-session');
+      });
+    });
+
+    it('no drift = no UI churn (idle ↔ idle stays silent)', async () => {
+      mockRecordingService.getRecordingStatus.mockResolvedValue('idle');
+
+      const { result } = renderHook(() => useRecordingWorkflow(), { wrapper });
+
+      await waitFor(() => {
+        expect(result.current.sessions).toEqual(mockSessions);
+      });
+
+      // No spurious status mutation from the mount-time check.
+      expect(result.current.recordingStatus).toBe('idle');
+      expect(result.current.status).toBe('Ready to record');
     });
   });
 });

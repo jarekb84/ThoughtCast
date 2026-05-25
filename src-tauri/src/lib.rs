@@ -10,9 +10,9 @@ use audio_cues::{
 use recording::{
     estimate_transcription_time, extract_transcription_stats, new_shared_progress,
     request_cancel_batch, AppConfig, BatchCompleteEvent, BatchEventEmitter, BatchProgress,
-    BatchProgressEvent, PathKind, PathValidation, RecordingState, RecordingStatus, Session,
-    SessionIndex, SharedBatchProgress, SharedRecordingState, StorageStats,
-    TranscriptionCompleteEvent, TranscriptionErrorEvent, TranscriptionEstimate,
+    BatchProgressEvent, PathKind, PathValidation, RecordingCaptureFailedEvent, RecordingState,
+    RecordingStatus, Session, SessionIndex, SharedBatchProgress, SharedRecordingState,
+    StorageStats, TranscriptionCompleteEvent, TranscriptionErrorEvent, TranscriptionEstimate,
     TranscriptionResult,
 };
 use shortcuts::{
@@ -42,25 +42,47 @@ impl BatchEventEmitter for TauriBatchEmitter {
 }
 
 #[tauri::command]
-fn start_recording(state: State<AppState>) -> Result<(), String> {
+fn start_recording(state: State<AppState>, app: tauri::AppHandle) -> Result<(), String> {
+    log::info!("Tauri command: start_recording");
     let recording_state = Arc::clone(&state.inner().recording);
-    recording::start_recording(recording_state)
+    // Forward capture-thread failures (mid-stream stream errors, init
+    // failures) to the frontend so the user sees an explicit "Recording
+    // ended unexpectedly" message instead of a silent revert to idle. The
+    // emitter is owned by the capture thread for the lifetime of the
+    // recording — `move`d in so the AppHandle clone outlives the closure.
+    let app_for_failure = app.clone();
+    recording::start_recording(recording_state, move |event: RecordingCaptureFailedEvent| {
+        log::warn!(
+            "Emitting recording-capture-failed: reason='{}', partial={:.2}s, recovered={}",
+            event.reason,
+            event.partial_duration_seconds,
+            event.recovered_session.is_some()
+        );
+        let _ = app_for_failure.emit("recording-capture-failed", event);
+    })
 }
 
 #[tauri::command]
 fn pause_recording(state: State<AppState>) -> Result<(), String> {
+    log::info!("Tauri command: pause_recording");
     let recording_state = Arc::clone(&state.inner().recording);
     recording::pause_recording(recording_state)
 }
 
 #[tauri::command]
 fn resume_recording(state: State<AppState>) -> Result<(), String> {
+    log::info!("Tauri command: resume_recording");
     let recording_state = Arc::clone(&state.inner().recording);
     recording::resume_recording(recording_state)
 }
 
 #[tauri::command]
 fn cancel_recording(state: State<AppState>) -> Result<(), String> {
+    // Logged here AND inside recording::cancel_recording so an investigation
+    // can distinguish "the command was invoked but the inner check rejected
+    // it" from "the inner cancel path ran." Crucial for the recording-loss
+    // bug class — see docs/PRD-recording-loss-prevention.md.
+    log::warn!("Tauri command: cancel_recording invoked");
     let recording_state = Arc::clone(&state.inner().recording);
     recording::cancel_recording(recording_state)
 }
@@ -145,6 +167,17 @@ fn get_recording_duration(state: State<AppState>) -> Result<f64, String> {
 fn get_recording_status(state: State<AppState>) -> Result<RecordingStatus, String> {
     let recording_state = state.inner().recording.lock().unwrap();
     Ok(recording_state.status)
+}
+
+/// Total seconds of audio durably committed to the in-flight WAV's on-disk
+/// header. Returns `None` when no recording is active or the writer hasn't
+/// flushed yet — the UI uses this to render the "Saved through MM:SS" trust
+/// signal so the user can see at a glance that long recordings are surviving
+/// on disk, not just in RAM.
+#[tauri::command]
+fn get_recording_flushed_through_seconds(state: State<AppState>) -> Result<Option<f64>, String> {
+    let recording_state = state.inner().recording.lock().unwrap();
+    Ok(recording_state.capture.flushed_through_seconds)
 }
 
 #[tauri::command]
@@ -368,13 +401,44 @@ pub fn run() {
     .manage(app_state)
     .on_menu_event(|app, event| app_menu::handle_menu_event(app, event))
     .setup(|app| {
+      // Persistent file logging: previously logs only went to the debug-mode
+      // console, which meant production incidents (the "my recording vanished"
+      // class) left zero evidence. We now write logs to
+      // `<documents>/ThoughtCast/logs/thoughtcast.log` in BOTH dev and release
+      // so post-incident forensics is possible — the user can attach a log
+      // file when reporting a loss. Rotated at 5 MB to keep a single session's
+      // worth of context without unbounded growth.
+      let log_dir = recording::get_storage_dir()
+          .map(|d| d.join("logs"))
+          .unwrap_or_else(|_| std::path::PathBuf::from("logs"));
+      let _ = std::fs::create_dir_all(&log_dir);
+      let mut targets = vec![
+          tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Folder {
+              path: log_dir,
+              file_name: Some("thoughtcast".to_string()),
+          }),
+      ];
       if cfg!(debug_assertions) {
-        app.handle().plugin(
-          tauri_plugin_log::Builder::default()
-            .level(log::LevelFilter::Info)
-            .build(),
-        )?;
+          targets.push(tauri_plugin_log::Target::new(
+              tauri_plugin_log::TargetKind::Stdout,
+          ));
+          targets.push(tauri_plugin_log::Target::new(
+              tauri_plugin_log::TargetKind::Webview,
+          ));
       }
+      app.handle().plugin(
+        tauri_plugin_log::Builder::default()
+          .level(log::LevelFilter::Info)
+          .targets(targets)
+          .max_file_size(5 * 1024 * 1024)
+          .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
+          .build(),
+      )?;
+      log::info!(
+          "ThoughtCast starting v{} (debug={})",
+          app.package_info().version,
+          cfg!(debug_assertions)
+      );
 
       let menu = app_menu::build_app_menu(app.handle())?;
       app.set_menu(menu)?;
@@ -401,6 +465,23 @@ pub fn run() {
               }
           }
           Err(e) => log::warn!("Skipping shortcut registration — config load failed: {}", e),
+      }
+
+      // Recover any in-flight WAVs left behind by a crashed previous run
+      // BEFORE the orphan-references repair walks the session index — the
+      // recovery scan adds rows for the recovered audio, and we want those
+      // rows visible to subsequent repair passes.
+      match recording::recover_orphaned_in_flight_recordings() {
+          Ok(report) => {
+              if report.recovered_sessions > 0 || report.discarded_orphans > 0 {
+                  log::info!(
+                      "Startup in-flight recovery: recovered {} sessions, discarded {} unsalvageable orphans",
+                      report.recovered_sessions,
+                      report.discarded_orphans
+                  );
+              }
+          }
+          Err(e) => log::warn!("In-flight recovery scan skipped: {}", e),
       }
 
       // Best-effort: heal any session-index / disk drift left over by an
@@ -456,6 +537,7 @@ pub fn run() {
         get_sessions,
         get_recording_duration,
         get_recording_status,
+        get_recording_flushed_through_seconds,
         get_audio_levels,
         load_config,
         save_config,
