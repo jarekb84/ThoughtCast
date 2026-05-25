@@ -2,6 +2,7 @@ import { formatDuration } from '../../shared/formatters/duration';
 import { RecordingStatus } from '../../api';
 import { Button, ProgressBar } from '../../shared/components';
 import { isPausedStatus, isIdleStatus } from './recordingStatusChecks';
+import { deriveSavedThroughIndicator } from './savedThroughIndicator';
 import AudioLevelIndicator from './AudioLevelIndicator';
 import { useAudioLevels } from './useAudioLevels';
 import { useTranscriptionProgress } from '../transcription/useTranscriptionProgress';
@@ -14,6 +15,13 @@ interface RecordingControlsProps {
   isProcessing: boolean;
   recordingDuration: number;
   audioDurationSeconds: number;
+  /**
+   * Seconds of audio durably committed to the in-flight WAV on disk. When
+   * non-null and > 0, surfaces a "Saved through MM:SS" trust signal below
+   * the timer. `null` while not recording or before the streaming writer's
+   * first flush.
+   */
+  flushedThroughSeconds: number | null;
   onStartRecording: () => void;
   onPauseRecording: () => void;
   onResumeRecording: () => void;
@@ -32,6 +40,7 @@ export default function RecordingControls({
   isProcessing,
   recordingDuration,
   audioDurationSeconds,
+  flushedThroughSeconds,
   onStartRecording,
   onPauseRecording,
   onResumeRecording,
@@ -41,6 +50,7 @@ export default function RecordingControls({
   const audioLevels = useAudioLevels(recordingStatus);
   const progress = useTranscriptionProgress(isProcessing, audioDurationSeconds);
   const displayData = prepareProgressDisplay(progress, formatHumanReadableDuration);
+  const savedThrough = deriveSavedThroughIndicator(flushedThroughSeconds, recordingDuration);
 
   if (isProcessing) {
     return (
@@ -86,9 +96,19 @@ export default function RecordingControls({
         <AudioLevelIndicator levels={audioLevels} />
       )}
 
-      <div className={`recording-timer ${isPaused ? 'paused' : ''}`}>
-        {formatDuration(recordingDuration)}
-        {isPaused && <span className="pause-indicator"> PAUSED</span>}
+      <div className="recording-timer-column">
+        <div className={`recording-timer ${isPaused ? 'paused' : ''}`}>
+          {formatDuration(recordingDuration)}
+          {isPaused && <span className="pause-indicator"> PAUSED</span>}
+        </div>
+        {savedThrough && (
+          <div
+            className={`saved-through-indicator ${savedThrough.isFalling ? 'falling' : ''}`}
+            title="The streaming WAV on disk reflects this much audio. If the app crashes, this much is recoverable."
+          >
+            {savedThrough.label}
+          </div>
+        )}
       </div>
 
       <div className="recording-buttons">

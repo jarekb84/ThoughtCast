@@ -8,6 +8,27 @@ import { useTranscriptViewer } from './useTranscriptViewer';
 import './SessionViewer.css';
 
 /**
+ * Pick the duration to feed into the transcribing progress UI.
+ *
+ * During processing, the existing transcription-estimate widget keys off the
+ * full audio duration of the just-stopped session (so it can extrapolate "how
+ * much of the recording have we transcribed so far"). While recording, the
+ * live timer is the right input. This was previously an inline ternary at the
+ * `RecordingControls` call site — extracted so the `.tsx` stays presentation-
+ * only per the React separation doctrine.
+ */
+function deriveAudioDurationForControls(
+  isProcessing: boolean,
+  selectedSession: Session | null,
+  recordingDuration: number,
+): number {
+  if (isProcessing && selectedSession) {
+    return selectedSession.duration;
+  }
+  return recordingDuration;
+}
+
+/**
  * Determines the CSS class for status messages based on content
  */
 function getStatusClass(status: string): string {
@@ -37,6 +58,7 @@ interface SessionViewerProps {
   recordingStatus: RecordingStatus;
   isProcessing: boolean;
   recordingDuration: number;
+  flushedThroughSeconds: number | null;
   status: string;
   onStartRecording: () => void;
   onPauseRecording: () => void;
@@ -52,6 +74,7 @@ export default function SessionViewer({
   recordingStatus,
   isProcessing,
   recordingDuration,
+  flushedThroughSeconds,
   status,
   onStartRecording,
   onPauseRecording,
@@ -84,11 +107,12 @@ export default function SessionViewer({
           recordingStatus={recordingStatus}
           isProcessing={isProcessing}
           recordingDuration={recordingDuration}
-          audioDurationSeconds={
-            isProcessing && selectedSession
-              ? selectedSession.duration
-              : recordingDuration
-          }
+          flushedThroughSeconds={flushedThroughSeconds}
+          audioDurationSeconds={deriveAudioDurationForControls(
+            isProcessing,
+            selectedSession,
+            recordingDuration,
+          )}
           onStartRecording={onStartRecording}
           onPauseRecording={onPauseRecording}
           onResumeRecording={onResumeRecording}

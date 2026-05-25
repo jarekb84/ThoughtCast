@@ -6,137 +6,35 @@ import {
   TranscriptionErrorEvent,
   SESSION_AUDIO_COMPRESSED,
   SessionAudioCompressedPayload,
+  RECORDING_CAPTURE_FAILED,
+  RecordingCaptureFailedPayload,
   useApi,
 } from '../api';
 import { listen } from '@tauri-apps/api/event';
 import { logger } from '../shared/utils/logger';
 import { useDocumentActivity } from '../shared/utils/useDocumentActivity';
 import { useRecordingCues } from '../features/audio-feedback/useRecordingCues';
+import {
+  detectStatusDrift,
+  applyDriftAction,
+  DriftCallbacks,
+} from '../features/recording/recordingStatusDrift';
+import {
+  autoSelectFirstSession,
+  findSessionById,
+  handleRecordingCaptureFailed,
+  handleTranscriptionComplete,
+  handleTranscriptionError,
+} from '../features/recording/workflowEventHandlers';
 
 /**
- * Determines appropriate status message based on recording result
+ * Cadence (ms) for the idle-state drift watcher. While the frontend believes
+ * recording is `'idle'`, we still want to catch the case where the backend is
+ * actually mid-capture (the reported "top bar reverted" symptom) — but we
+ * don't need the 500 ms timer cadence for that. 3 s keeps the heartbeat cheap
+ * while shortening any drift window the user might notice.
  */
-export function determineRecordingStatus(session: Session): string {
-  if (session.transcript_path && session.transcript_path.length > 0) {
-    if (session.clipboard_copied) {
-      return "✅ Transcript copied to clipboard!";
-    }
-    return "⚠️ Transcription complete (clipboard copy failed - use Copy button)";
-  }
-  return "⚠️ Recording saved (transcription failed - check Whisper setup)";
-}
-
-/**
- * Finds session by ID or returns null
- */
-export function findSessionById(sessions: Session[], id: string | null): Session | null {
-  if (!id) return null;
-  return sessions.find(s => s.id === id) || null;
-}
-
-/**
- * Selects the first session if none selected and sessions available
- */
-export function autoSelectFirstSession(
-  sessions: Session[],
-  currentSelectedId: string | null
-): string | null {
-  if (sessions.length > 0 && !currentSelectedId) {
-    return sessions[0].id;
-  }
-  return currentSelectedId;
-}
-
-/**
- * Handle transcription completion event
- *
- * Background transcriptions (a prior recording or a user-triggered retranscribe)
- * can finish while the user is already in the middle of a *new* recording —
- * including paused. Without `getRecordingStatus`, this handler would
- * unconditionally flip `recordingStatus` to `'idle'` and wipe the in-progress
- * recording out of the UI even though the backend is still capturing it. We
- * gate the workflow-state mutations on actually being in `'processing'`; if
- * we're not, the event corresponds to background work and we only refresh
- * the session list (so the completed transcript appears in the sidebar).
- */
-export function handleTranscriptionComplete(
-  session: Session,
-  callbacks: {
-    setStatus: (status: string) => void;
-    setRecordingStatus: (status: RecordingStatus) => void;
-    setIsProcessing: (processing: boolean) => void;
-    loadSessions: () => Promise<void>;
-    playReadyCue: () => void;
-    getRecordingStatus: () => RecordingStatus;
-  }
-): void {
-  logger.info('Transcription completed:', session.id);
-
-  // Always refresh the session list so the completed transcript shows up,
-  // even if we shouldn't touch the recording state machine.
-  callbacks.loadSessions();
-
-  const currentStatus = callbacks.getRecordingStatus();
-  if (currentStatus !== 'processing') {
-    // A stale completion arrived while the user has already moved on (idle,
-    // recording, or paused). Suppress the workflow reset and the audio cue —
-    // playing it through speakers would bleed into the active mic capture.
-    return;
-  }
-
-  // Determine and set appropriate status
-  const resultStatus = determineRecordingStatus(session);
-  callbacks.setStatus(resultStatus);
-
-  // Update recording status to idle
-  callbacks.setRecordingStatus('idle');
-  callbacks.setIsProcessing(false);
-
-  // Fire-and-forget "ready" cue — advisory audio feedback that the transcript
-  // is now on the clipboard. Failures here are non-fatal by design (handled
-  // in the audio_cues Rust module).
-  callbacks.playReadyCue();
-
-  // Reset status after delay
-  setTimeout(() => callbacks.setStatus('Ready to record'), 5000);
-}
-
-/**
- * Handle transcription error event
- *
- * Mirrors `handleTranscriptionComplete`'s gating: an error event from a
- * background transcription must not clobber a recording the user has already
- * started afterward. See that function's docstring for details.
- */
-export function handleTranscriptionError(
-  sessionId: string,
-  error: string,
-  callbacks: {
-    setStatus: (status: string) => void;
-    setRecordingStatus: (status: RecordingStatus) => void;
-    setIsProcessing: (processing: boolean) => void;
-    loadSessions: () => Promise<void>;
-    getRecordingStatus: () => RecordingStatus;
-  }
-): void {
-  logger.error('Transcription failed for session:', sessionId, error);
-
-  // Always refresh the session list so the error state shows up even if we
-  // don't touch the recording workflow.
-  callbacks.loadSessions();
-
-  const currentStatus = callbacks.getRecordingStatus();
-  if (currentStatus !== 'processing') {
-    return;
-  }
-
-  callbacks.setStatus(`⚠️ Recording saved (transcription failed: ${error})`);
-  callbacks.setRecordingStatus('idle');
-  callbacks.setIsProcessing(false);
-
-  // Reset status after delay
-  setTimeout(() => callbacks.setStatus('Ready to record'), 5000);
-}
+const IDLE_DRIFT_POLL_MS = 3000;
 
 interface RecordingWorkflowState {
   sessions: Session[];
@@ -150,6 +48,12 @@ interface RecordingWorkflowState {
   recordingStatusRef: React.RefObject<RecordingStatus>;
   isProcessing: boolean;
   recordingDuration: number;
+  /**
+   * Seconds of audio the backend has durably committed to the in-flight
+   * WAV's on-disk header (i.e. survives a crash from this point on). `null`
+   * while no recording is active or the streaming writer has not yet flushed.
+   */
+  flushedThroughSeconds: number | null;
   status: string;
   selectedSession: Session | null;
 }
@@ -183,6 +87,7 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
   const [recordingStatus, setRecordingStatus] = useState<RecordingStatus>('idle');
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
+  const [flushedThroughSeconds, setFlushedThroughSeconds] = useState<number | null>(null);
   const [status, setStatus] = useState("Ready to record");
 
   // Keep a live mirror of recordingStatus that long-lived listeners (e.g. the
@@ -358,11 +263,29 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
         }
       );
 
+      // Listen for capture-thread failures. The audio thread surfaces these
+      // when the stream dies mid-recording (e.g. mic disconnected) or fails
+      // to start. The handler resets workflow state and surfaces a visible
+      // warning so the failure is no longer silent.
+      const unlistenCaptureFailed = await listen<RecordingCaptureFailedPayload>(
+        RECORDING_CAPTURE_FAILED,
+        (event) =>
+          handleRecordingCaptureFailed(event.payload, {
+            setStatus,
+            setRecordingStatus,
+            setIsProcessing,
+            setRecordingDuration,
+            setSelectedId,
+            loadSessions,
+          })
+      );
+
       // Cleanup listeners on unmount
       return () => {
         unlistenComplete();
         unlistenError();
         unlistenCompressed();
+        unlistenCaptureFailed();
       };
     };
 
@@ -373,12 +296,32 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
     };
   }, [loadSessions]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Drift-callback bundle used by both reconciliation paths (the active-state
+  // tick and the idle-watcher) to apply backend truth to the workflow state.
+  // Defined once so both effects share an identity-stable shape.
+  const driftCallbacks: DriftCallbacks = {
+    setRecordingStatus,
+    setStatus,
+    setIsProcessing,
+    setRecordingDuration,
+    loadSessions,
+  };
+  const driftCallbacksRef = useRef<DriftCallbacks>(driftCallbacks);
+  useEffect(() => {
+    driftCallbacksRef.current = driftCallbacks;
+  });
+
   // Timer for recording duration. Display granularity is whole seconds
   // (MM:SS), so polling at 2 Hz keeps the timer visually current without
   // re-rendering the App tree 10x/sec — every tick rippled through React
   // reconciliation and forced a repaint of the timer span. Skip polling
   // entirely when the window is hidden: the timer is offscreen, and the
   // next interval tick after un-hide refreshes it within 500 ms.
+  //
+  // This tick also carries the active-state reconciliation: every duration
+  // poll fetches the backend's `recording_status` and corrects any drift.
+  // Backend is the source of truth, so a stale event or asynchronous signal
+  // that flipped the frontend out of sync self-heals here.
   useEffect(() => {
     let interval: number | undefined;
 
@@ -388,20 +331,79 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
     if (isTimingRecording && activity !== 'hidden') {
       interval = window.setInterval(async () => {
         try {
-          const duration = await recordingService.getRecordingDuration();
+          const [backendStatus, duration, flushed] = await Promise.all([
+            recordingService.getRecordingStatus(),
+            recordingService.getRecordingDuration(),
+            recordingService.getRecordingFlushedThroughSeconds(),
+          ]);
           setRecordingDuration(duration);
+          setFlushedThroughSeconds(flushed);
+          const action = detectStatusDrift(recordingStatusRef.current, backendStatus);
+          applyDriftAction(action, driftCallbacksRef.current);
         } catch (error) {
-          logger.error("Failed to get recording duration:", error);
+          logger.error("Failed to poll recording status/duration:", error);
         }
       }, 500);
     } else if (!isTimingRecording) {
       setRecordingDuration(0);
+      setFlushedThroughSeconds(null);
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
   }, [recordingStatus, recordingService, activity]);
+
+  // Idle-watcher: when the frontend believes it is `'idle'`, the fast active
+  // tick above is not running, so a backend that is still capturing would
+  // otherwise stay invisible to the UI. This is exactly the bug class the PRD
+  // calls out — "top bar reverted to Record while the recording was still
+  // going." Polling backend status every 3 s closes the window without
+  // burning the IPC bus.
+  //
+  // We also explicitly skip this when frontend status is `'processing'`: the
+  // transcription pipeline owns that state, and the backend briefly reports
+  // `'idle'` once transcription finishes on its own thread — we don't want to
+  // surface a false "recording ended unexpectedly" warning during that
+  // handoff.
+  useEffect(() => {
+    if (recordingStatus !== 'idle' || activity === 'hidden') {
+      return;
+    }
+
+    const interval = window.setInterval(async () => {
+      try {
+        const backendStatus = await recordingService.getRecordingStatus();
+        const action = detectStatusDrift(recordingStatusRef.current, backendStatus);
+        applyDriftAction(action, driftCallbacksRef.current);
+      } catch (error) {
+        logger.error("Failed to poll recording status for idle drift:", error);
+      }
+    }, IDLE_DRIFT_POLL_MS);
+
+    return () => clearInterval(interval);
+  }, [recordingStatus, recordingService, activity]);
+
+  // One-shot mount reconciliation: if a previous renderer/session left the
+  // backend mid-recording (e.g. window reload, dev-mode HMR, or process
+  // restart while the OS kept the audio thread alive), restore the UI to
+  // backend truth before the user notices the empty top bar.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const backendStatus = await recordingService.getRecordingStatus();
+        if (cancelled) return;
+        const action = detectStatusDrift(recordingStatusRef.current, backendStatus);
+        applyDriftAction(action, driftCallbacksRef.current);
+      } catch (error) {
+        logger.error("Failed initial recording-status reconciliation:", error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedSession = findSessionById(sessions, selectedId);
 
@@ -412,6 +414,7 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
     recordingStatusRef,
     isProcessing,
     recordingDuration,
+    flushedThroughSeconds,
     status,
     selectedSession,
     handleStartRecording,

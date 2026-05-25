@@ -16,6 +16,8 @@ export type {
   CompressionBatchProgressPayload,
   CompressionBatchCompletePayload,
 } from './CompressionEvents';
+export { RECORDING_CAPTURE_FAILED } from './RecordingFailureEvents';
+export type { RecordingCaptureFailedPayload } from './RecordingFailureEvents';
 export type {
   TranscriptionEstimate,
   TranscriptionProgress,
