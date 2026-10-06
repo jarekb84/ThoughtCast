@@ -6,12 +6,19 @@
   gap: var(--space-md);
 }
 
+.recording-timer-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-xs);
+  min-width: 100px;
+}
+
 .recording-timer {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
   color: var(--color-danger);
   font-family: var(--font-family-mono);
-  min-width: 100px;
   text-align: right;
   line-height: var(--line-height-normal);
   padding: var(--space-xs) var(--space-sm);
@@ -31,6 +38,24 @@
   margin-left: var(--space-sm);
   letter-spacing: 0.5px;
   opacity: 0.9;
+}
+
+.saved-through-indicator {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-tertiary);
+  font-family: var(--font-family-mono);
+  letter-spacing: 0.02em;
+  line-height: var(--line-height-tight);
+  padding: 2px var(--space-sm);
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-base), background-color var(--transition-base);
+}
+
+.saved-through-indicator.falling {
+  color: var(--color-neutral-hover);
+  background-color: var(--color-neutral-bg);
+  font-weight: var(--font-weight-semibold);
 }
 
 .recording-buttons {

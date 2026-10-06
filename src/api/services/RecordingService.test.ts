@@ -115,6 +115,31 @@ describe('TauriRecordingService', () => {
       await expect(service.getAudioLevels()).rejects.toThrow('Failed to get audio levels');
     });
   });
+
+  describe('getRecordingFlushedThroughSeconds', () => {
+    it('returns the durably-flushed duration', async () => {
+      mockInvoke.mockResolvedValue(123.45);
+
+      const result = await service.getRecordingFlushedThroughSeconds();
+
+      expect(mockInvoke).toHaveBeenCalledWith(
+        'get_recording_flushed_through_seconds',
+        undefined
+      );
+      expect(result).toBe(123.45);
+    });
+
+    it('returns null when no recording is active', async () => {
+      mockInvoke.mockResolvedValue(null);
+      const result = await service.getRecordingFlushedThroughSeconds();
+      expect(result).toBeNull();
+    });
+
+    it('wraps backend errors in ApiError', async () => {
+      mockInvoke.mockRejectedValue(new Error('Backend gone'));
+      await expect(service.getRecordingFlushedThroughSeconds()).rejects.toThrow(ApiError);
+    });
+  });
 });
 
 describe('MockRecordingService', () => {

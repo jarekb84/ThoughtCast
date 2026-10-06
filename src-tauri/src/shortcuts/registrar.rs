@@ -71,6 +71,16 @@ pub fn unregister_record_shortcut(app: &AppHandle) -> Result<(), String> {
 /// `recordingStatus`) are expected to register only while a recording is
 /// active, then unregister once the take ends — keeping the OS-global Escape
 /// binding from clobbering text inputs in other apps when ThoughtCast is idle.
+///
+/// **Focus-gated**: the registered handler additionally checks that the
+/// ThoughtCast window has keyboard focus before emitting the cancel event.
+/// `tauri-plugin-global-shortcut` installs an OS-wide keyboard hook — without
+/// this gate, hitting Escape *anywhere* on the OS (closing a browser modal,
+/// dismissing an IDE autocomplete, exiting fullscreen video) would destroy the
+/// in-flight recording. The user lost 13 minutes of audio to exactly this on
+/// 2026-05-25. The focus check costs one IPC-free `is_focused()` call per key
+/// press and matches the user's mental model of "this shortcut applies to
+/// ThoughtCast."
 pub fn register_cancel_shortcut(app: &AppHandle, accelerator: &str) -> Result<(), String> {
     ensure_cancel_slot(app);
     let slot = &app.state::<CancelShortcutSlot>().0;
@@ -81,16 +91,33 @@ pub fn register_cancel_shortcut(app: &AppHandle, accelerator: &str) -> Result<()
     let handler_app = app.clone();
     app.global_shortcut()
         .on_shortcut(shortcut, move |_app, _short, event| {
-            // We only emit on press — cancel has no "release" semantic.
-            if event.state() == ShortcutState::Pressed {
-                let _ = handler_app.emit(
-                    CANCEL_SHORTCUT_EVENT,
-                    ShortcutEventPayload { state: "pressed" },
-                );
+            if event.state() != ShortcutState::Pressed {
+                return;
             }
+            if !thoughtcast_window_is_focused(&handler_app) {
+                log::info!(
+                    "Cancel shortcut press swallowed — ThoughtCast window is not focused"
+                );
+                return;
+            }
+            let _ = handler_app.emit(
+                CANCEL_SHORTCUT_EVENT,
+                ShortcutEventPayload { state: "pressed" },
+            );
         })
         .map_err(|e| format!("Failed to register cancel shortcut '{}': {}", accelerator, e))?;
     Ok(())
+}
+
+/// True only when the ThoughtCast main window currently has keyboard focus.
+/// Conservative: any error (window missing, focus query fails) returns false
+/// so the worst case is "shortcut quietly does nothing" rather than "cancel
+/// fires from another app."
+fn thoughtcast_window_is_focused(app: &AppHandle) -> bool {
+    let Some(window) = app.get_webview_window("main") else {
+        return false;
+    };
+    window.is_focused().unwrap_or(false)
 }
 
 pub fn unregister_cancel_shortcut(app: &AppHandle) -> Result<(), String> {

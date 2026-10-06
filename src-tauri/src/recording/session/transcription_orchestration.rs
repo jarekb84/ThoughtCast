@@ -115,7 +115,10 @@ pub struct ChunkProgressEvent {
     pub total: u32,
 }
 
-/// Result of async transcription for event emission
+/// Result of async transcription for event emission. Shared between the
+/// initial-recording (`orchestrate_async_transcription`) and retranscription
+/// (`retranscription::orchestrate_async_retranscription`) pipelines so both
+/// emit the same Tauri events.
 pub enum TranscriptionResult {
     Success(Session),
     Progress(ChunkProgressEvent),
@@ -210,7 +213,7 @@ pub fn process_transcription_async(
 /// the user shouldn't get a transcription failure just because chunking
 /// can't run. The path falls back to a normal single-shot transcription
 /// in that case (PRD edge case 7).
-pub(super) fn run_transcription_route(
+pub(crate) fn run_transcription_route(
     audio_path: &Path,
     session_id: &str,
     audio_duration_sec: f64,
@@ -242,7 +245,7 @@ pub(super) fn run_transcription_route(
 
 /// Measure the recording's signal health from the WAV about to be
 /// transcribed. Advisory only: a failure is logged and leaves the field empty.
-pub(super) fn measure_recording_quality(wav_path: &Path) -> Option<RecordingQuality> {
+pub(crate) fn measure_recording_quality(wav_path: &Path) -> Option<RecordingQuality> {
     match analyze_wav(wav_path) {
         Ok(quality) => quality,
         Err(e) => {

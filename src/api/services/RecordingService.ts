@@ -56,6 +56,18 @@ export interface IRecordingService {
    * @throws {ApiError} If audio level retrieval fails
    */
   getAudioLevels(): Promise<number[]>;
+
+  /**
+   * Total seconds of audio durably committed to the in-flight WAV's on-disk
+   * header. Returns `null` when no recording is active or the streaming writer
+   * has not yet flushed.
+   *
+   * The UI uses this to render a "Saved through MM:SS" trust signal so the
+   * user can tell at a glance that a long recording is surviving on disk —
+   * not just in RAM.
+   * @throws {ApiError} If the call fails
+   */
+  getRecordingFlushedThroughSeconds(): Promise<number | null>;
 }
 
 /**
@@ -133,6 +145,15 @@ export class TauriRecordingService implements IRecordingService {
       undefined,
       'Failed to get audio levels',
       'AUDIO_LEVELS_FAILED'
+    );
+  }
+
+  async getRecordingFlushedThroughSeconds(): Promise<number | null> {
+    return wrapTauriInvoke<number | null>(
+      'get_recording_flushed_through_seconds',
+      undefined,
+      'Failed to get streamed audio durability',
+      'RECORDING_FLUSH_STATUS_FAILED'
     );
   }
 }
@@ -301,6 +322,19 @@ export class MockRecordingService implements IRecordingService {
       const noise = Math.random() * 0.3;
       return Math.min(1.0, wave * 0.6 + noise * 0.4);
     });
+  }
+
+  async getRecordingFlushedThroughSeconds(): Promise<number | null> {
+    await new Promise(resolve => setTimeout(resolve, 10));
+    if (this.status === 'idle' || !this.recordingStartTime) {
+      return null;
+    }
+    // Mock behavior: pretend the streaming writer is ~1s behind the timer.
+    const elapsedMs =
+      this.mockDuration > 0
+        ? this.mockDuration * 1000
+        : Date.now() - this.recordingStartTime - this.totalPausedDurationMs;
+    return Math.max(0, elapsedMs / 1000 - 1.0);
   }
 
   /**

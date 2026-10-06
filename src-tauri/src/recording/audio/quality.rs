@@ -85,7 +85,8 @@ pub fn analyze_wav(path: &Path) -> Result<Option<RecordingQuality>, String> {
     Ok(acc.finish())
 }
 
-/// Analyze mono samples in memory (tests, and callers that already have them).
+/// Analyze mono samples in memory. Tests use it to skip the WAV round trip.
+#[cfg(test)]
 pub fn analyze_samples(samples: &[f32], sample_rate: u32) -> Option<RecordingQuality> {
     let mut acc = LevelAccumulator::new(sample_rate);
     samples.iter().for_each(|&s| acc.push(s));

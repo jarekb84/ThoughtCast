@@ -1,10 +1,6 @@
-//! Re-run transcription on an existing session's audio. Compressed audio is
-//! decoded back to a temporary WAV first; the transcription route itself is
-//! shared with the stop-recording flow (`transcription_flow`).
-
 use crate::recording::audio::read_wav_duration_seconds;
-use crate::recording::models::{AppConfig, Session};
-use crate::recording::session::transcription_flow::{
+use crate::recording::models::{AppConfig, Session, PROCESSING_PREVIEW};
+use crate::recording::session::transcription_orchestration::{
     measure_recording_quality, run_transcription_route, ChunkProgressEvent, TranscriptionResult,
 };
 use crate::recording::state::SharedRecordingState;
@@ -45,7 +41,7 @@ pub fn start_retranscription(session_id: &str) -> Result<Session, String> {
     // to render the spinner + estimated-time UI (see
     // `determineTranscriptionState` on the frontend). Reusing the same marker
     // means retranscribe gets the existing transcribing view for free.
-    session.preview = "Processing...".to_string();
+    session.preview = PROCESSING_PREVIEW.to_string();
     let updated = session.clone();
 
     save_sessions(&index)?;
@@ -137,14 +133,13 @@ fn process_retranscription_async(
     let recording_quality = measure_recording_quality(&transcription_input);
 
     let transcription_start = Instant::now();
-    let (transcript_path, preview, clipboard_copied, chunking_telemetry) =
-        run_transcription_route(
-            &transcription_input,
-            &session_id,
-            chunking_duration,
-            config.as_ref(),
-            on_progress,
-        );
+    let (transcript_path, preview, clipboard_copied, chunking_telemetry) = run_transcription_route(
+        &transcription_input,
+        &session_id,
+        chunking_duration,
+        config.as_ref(),
+        on_progress,
+    );
     let transcription_elapsed = transcription_start.elapsed().as_secs_f64();
 
     if let Some(temp) = temp_wav_to_cleanup {
@@ -299,9 +294,6 @@ mod tests {
     fn test_derive_retranscribe_temp_path_falls_back_to_cwd_when_no_parent() {
         let audio = Path::new("recording.m4a");
         let temp = derive_retranscribe_temp_path(audio, "abc");
-        // Either ".retranscribe-abc.wav" (no parent) or "./.retranscribe-abc.wav"
-        // — both are valid. We just want to confirm we didn't panic and the
-        // session id ended up in the filename.
         let s = temp.to_string_lossy();
         assert!(s.contains(".retranscribe-abc.wav"), "got: {}", s);
     }
@@ -328,7 +320,7 @@ mod tests {
 
         let mut path = std::env::temp_dir();
         path.push(format!(
-            "thoughtcast_lifecycle_test_{}.wav",
+            "thoughtcast_retranscribe_test_{}.wav",
             std::process::id()
         ));
 
