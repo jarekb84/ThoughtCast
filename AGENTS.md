@@ -83,21 +83,26 @@ Long sessions re-read the whole context every turn, so keep it lean without read
 Versions come from git tags (`vX.Y.Z`); `scripts/inject-git-version.js` stamps them into builds, so don't edit version numbers in `package.json` or `tauri.conf.json`.
 
 1. Work happens on a branch and lands on `main` through a pull request.
-2. Every push to `main` runs `.github/workflows/auto-tag.yml`, which tags the next **patch** version. A first commit line starting with `[minor]` (or containing it) bumps MINOR; `[major]`/`BREAKING:` bumps MAJOR. Use `[minor]` in the squash-merge title for a round of new features.
+2. PRs are squash-merged, so the PR title becomes the commit on `main`. Every push to `main` runs `.github/workflows/auto-tag.yml`, which reads that newest commit: a `MINOR:` prefix tags the next minor version, `MAJOR:` the next major, anything else the next patch.
 3. The installers are built by the **Build and Release** workflow (`.github/workflows/release-cross-platform.yml`, manual dispatch only), which releases the latest tag on `main` with the Windows `.exe` and the Apple Silicon `.dmg`. Dispatch it from GitHub → Actions, or `gh workflow run "Build and Release"` when `gh` is authenticated.
 
-So "cut the release" means: push the branch, open the PR (title prefixed with `[minor]` for a feature round), and after it's merged and tagged, dispatch Build and Release. Pushing and merging are outward-facing: do them only after the user says yes.
+So "cut the release" means: push the branch, open the PR (title prefixed with `MINOR:` for a feature round), and after it's squash-merged and tagged, dispatch Build and Release. Pushing and merging are outward-facing: do them only after the user says yes.
 
 ## Commit messages
 
-A prefix, then what changed and why:
+A prefix, then what changed; the body says why. The `commit-msg` hook (`scripts/check-commit-msg.mjs`) rejects anything else:
 
 ```
-IMPROVE: Enhancement to an existing feature (#PR)
-REFACTOR: Restructuring with no behavior change
+IMPROVE: New capability or enhancement (#PR)
 BUG: Fix for unintended behavior
-Add <new feature> (#PR)
+REFACTOR: Restructuring with no behavior change
+DOCS: Documentation only
+CHORE: Tooling, config, housekeeping
+MINOR: A round of features; on the PR title, bumps the minor version
+MAJOR: Breaking change; on the PR title, bumps the major version
 ```
+
+Only the PR title (the squash commit on `main`) decides the release bump (see "Releases"); branch commits use the descriptive prefixes.
 
 ## Platform notes
 

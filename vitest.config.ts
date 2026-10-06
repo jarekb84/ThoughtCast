@@ -9,7 +9,7 @@ export default defineConfig({
     environment: 'jsdom',
     restoreMocks: true,
     pool: 'vmThreads',
-    include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
+    include: ['src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}', 'scripts/**/*.test.mjs'],
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
