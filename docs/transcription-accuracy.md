@@ -35,6 +35,20 @@ Conclusions:
 - **Upgrade whisper.cpp to 1.9.x** for VAD (1.7.6+), `--carry-initial-prompt` (1.8.1+), flash attention on by default (1.8.0), and Parakeet (1.9.0). Upgrading alone, without VAD, doesn't help.
 - **Parakeet** is a solid alternative when loops matter more than names, and it's selectable in Settings. It isn't more accurate here.
 
+### Loop sessions (8 sessions that looped in production)
+
+Looped words, summed over all 8 (sessions with any loop in brackets):
+
+| Config | Looped words |
+| --- | --- |
+| Stored production transcripts | 3,910 (8) |
+| Re-run, whisper.cpp 1.7.5, bare flags | 885 (6) |
+| whisper.cpp 1.9.5, bare flags | 532 (3) |
+| 1.9.5 + VAD, with or without `--max-context 0` | 0 |
+| 1.9.5 + VAD + vocabulary prompt | 27 (1) |
+| Parakeet TDT v3 | 0 |
+| **The app's retry ladder** (below), on the 3 sessions where 1.9.5 looped | **0**, each rescued by the first retry |
+
 ### Voice activity detection
 
 VAD removed every loop in testing, but it skips quiet speech, and walking-around sessions have a lot of it. On a 42-minute session, measured against a run without VAD (a lost span counts only when an independent run confirms the words):
@@ -67,7 +81,8 @@ Analysis of the reference recording (FIFINE USB mic, user walking around the des
 
 - Integrated loudness −36.7 LUFS, peaks −7 dBFS: quiet. Typical speech recordings sit at −16 to −23 LUFS.
 - Voice level (90th percentile of 50 ms frames) −33 dBFS, background (10th percentile) −60 dBFS: **27 dB apart**, a clean signal. No hum, no tonal noise, and full bandwidth to 12 kHz in the spectrogram.
-- Level changes by minute were small (about 4 dB) in this note. A session that produced a 119-line loop showed 20 dB voice-to-background and a 15 dB swing between minutes: the walking-around signature.
+- Level changes by minute were small (about 4 dB) in this note.
+- Across sessions: 12 random long sessions without loops all rate Good (voice-to-background 22–33 dB, swing between minutes 3–9 dB). Of the 8 loop sessions, 6 look the same; the two with the worst loops (119 and 123 repeated lines) had **17–19 dB swings between minutes**, the walking-around signature. So the mic is consistent and fine, loops mostly happen on good audio (the software fix matters most), and moving around makes the worst cases worse.
 
 Whisper normalizes its input, so raising gain alone barely changes accuracy. Distance does: the further from the mic, the more room echo and background relative to voice. In order of impact:
 
