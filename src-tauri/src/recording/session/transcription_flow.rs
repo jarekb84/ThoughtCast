@@ -261,13 +261,46 @@ fn transcribe_single(
     Ok((transcript_path, text))
 }
 
-/// Generate a preview string from transcript text
+const PREVIEW_CHARS: usize = 100;
+
+/// Generate a preview string from transcript text. Truncates by characters,
+/// not bytes, so a multi-byte character (an em dash, an accented letter) at
+/// the cut can't panic.
 fn generate_preview(text: &str) -> String {
-    if text.len() > 100 {
-        format!("{}...", &text[..100])
-    } else if text.is_empty() {
-        "No transcript".to_string()
-    } else {
-        text.to_string()
+    if text.is_empty() {
+        return "No transcript".to_string();
+    }
+    match text.char_indices().nth(PREVIEW_CHARS) {
+        Some((cut, _)) => format!("{}...", &text[..cut]),
+        None => text.to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_preview_keeps_short_text() {
+        assert_eq!(generate_preview("short note"), "short note");
+    }
+
+    #[test]
+    fn test_preview_marks_empty_transcript() {
+        assert_eq!(generate_preview(""), "No transcript");
+    }
+
+    #[test]
+    fn test_preview_truncates_long_text_to_100_chars() {
+        let text = "a".repeat(150);
+        assert_eq!(generate_preview(&text), format!("{}...", "a".repeat(100)));
+    }
+
+    #[test]
+    fn test_preview_does_not_split_multibyte_characters() {
+        // 99 ASCII bytes then an em dash (3 bytes) straddling byte 100.
+        let text = format!("{}\u{2014}{}", "a".repeat(99), "b".repeat(50));
+        let preview = generate_preview(&text);
+        assert_eq!(preview, format!("{}\u{2014}...", "a".repeat(99)));
     }
 }
