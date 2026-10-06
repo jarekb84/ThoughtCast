@@ -48,7 +48,7 @@ export default function WhisperEngineFields({ form }: { form: FormHandle }) {
         }}
         onChange={(v) => form.setTranscriptionField("vadModelPath", v)}
         onValidate={() => form.revalidatePath("transcription.vadModelPath", "file")}
-        helpText="Recommended: ggml-silero-v6.2.0.bin from huggingface.co/ggml-org/whisper-vad. Whisper then skips pauses, where it otherwise invents text and falls into repetition loops. Needs whisper.cpp 1.7.6+."
+        helpText="Recommended: ggml-silero-v6.2.0.bin from huggingface.co/ggml-org/whisper-vad (whisper.cpp 1.7.6+). With loop repair on, it's the last-resort retry for audio that keeps looping; with repair off, every pass skips pauses with it."
       />
       <label className="transcription-vocabulary">
         <span className="transcription-vocabulary-label">Vocabulary</span>
@@ -73,7 +73,8 @@ export default function WhisperEngineFields({ form }: { form: FormHandle }) {
         />
         <span>
           Repair repetition loops: when Whisper repeats a phrase over and over,
-          re-transcribe that part and remove leftover repeats.
+          re-transcribe that part (without carried context, then with voice
+          activity detection) and remove leftover repeats.
         </span>
       </label>
     </>

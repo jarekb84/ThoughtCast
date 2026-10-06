@@ -16,6 +16,15 @@ use std::process::Command;
 const VAD_MIN_SILENCE_MS: &str = "2000";
 const VAD_SPEECH_PAD_MS: &str = "400";
 
+/// One whisper-cli run's decoding choices; the engine picks these per attempt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WhisperPass {
+    pub context: ContextMode,
+    /// Use voice activity detection if a VAD model is configured and the
+    /// binary supports it.
+    pub vad: bool,
+}
+
 /// How much previously decoded text Whisper may use as context.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ContextMode {
@@ -37,10 +46,10 @@ struct WhisperOptions {
 }
 
 /// Transcribe one audio file with whisper-cli.
-pub fn transcribe(audio_path: &Path, config: &AppConfig, context: ContextMode) -> Result<String, String> {
+pub fn transcribe(audio_path: &Path, config: &AppConfig, pass: WhisperPass) -> Result<String, String> {
     validate_whisper_setup(config)?;
     let caps = whisper_capabilities(&config.whisper_path);
-    let options = resolve_options(config, caps, context);
+    let options = resolve_options(config, caps, pass);
     let cmd = build_whisper_command(&config.whisper_path, &config.model_path, audio_path, &options);
     run_to_text(cmd, audio_path, "Whisper")
 }
@@ -60,11 +69,15 @@ fn validate_whisper_setup(config: &AppConfig) -> Result<(), String> {
     Ok(())
 }
 
-fn resolve_options(config: &AppConfig, caps: WhisperCapabilities, context: ContextMode) -> WhisperOptions {
-    let t = &config.transcription;
+/// Whether a VAD pass is possible at all: a model is configured, exists, and
+/// the binary supports `--vad`. Logs why not, once per call.
+pub fn vad_available(config: &AppConfig) -> bool {
+    vad_model_for(config, whisper_capabilities(&config.whisper_path)).is_some()
+}
 
-    let vad_path = t.vad_model_path.trim();
-    let vad_model = if vad_path.is_empty() {
+fn vad_model_for(config: &AppConfig, caps: WhisperCapabilities) -> Option<String> {
+    let vad_path = config.transcription.vad_model_path.trim();
+    if vad_path.is_empty() {
         None
     } else if !caps.vad {
         log::warn!("VAD model configured but this whisper-cli has no --vad support; upgrade whisper.cpp to 1.7.6+");
@@ -74,16 +87,20 @@ fn resolve_options(config: &AppConfig, caps: WhisperCapabilities, context: Conte
         None
     } else {
         Some(vad_path.to_string())
-    };
+    }
+}
 
-    let vocabulary = t.vocabulary.trim();
+fn resolve_options(config: &AppConfig, caps: WhisperCapabilities, pass: WhisperPass) -> WhisperOptions {
+    let vad_model = if pass.vad { vad_model_for(config, caps) } else { None };
+
+    let vocabulary = config.transcription.vocabulary.trim();
     let prompt = (!vocabulary.is_empty()).then(|| vocabulary.to_string());
 
     WhisperOptions {
         carry_prompt: prompt.is_some() && caps.carry_initial_prompt,
         vad_model,
         prompt,
-        context,
+        context: pass.context,
     }
 }
 
@@ -171,6 +188,18 @@ mod tests {
         assert_eq!(args[mc + 1], "0");
     }
 
+    const WITH_VAD: WhisperPass = WhisperPass { context: ContextMode::Carry, vad: true };
+
+    #[test]
+    fn test_pass_without_vad_never_adds_vad_flags() {
+        let config = config_with(env!("CARGO_MANIFEST_DIR"), "");
+        let caps = WhisperCapabilities { vad: true, carry_initial_prompt: true };
+        let pass = WhisperPass { context: ContextMode::Fresh, vad: false };
+        let opts = resolve_options(&config, caps, pass);
+        assert_eq!(opts.vad_model, None);
+        assert_eq!(opts.context, ContextMode::Fresh);
+    }
+
     fn config_with(vad: &str, vocabulary: &str) -> AppConfig {
         let mut config = AppConfig::default();
         config.transcription.vad_model_path = vad.to_string();
@@ -183,28 +212,28 @@ mod tests {
         // Cargo.toml exists, so only the capability gate can drop VAD here.
         let config = config_with(env!("CARGO_MANIFEST_DIR"), "");
         let old = WhisperCapabilities { vad: false, carry_initial_prompt: false };
-        assert_eq!(resolve_options(&config, old, ContextMode::Carry).vad_model, None);
+        assert_eq!(resolve_options(&config, old, WITH_VAD).vad_model, None);
 
         let new = WhisperCapabilities { vad: true, carry_initial_prompt: true };
-        assert!(resolve_options(&config, new, ContextMode::Carry).vad_model.is_some());
+        assert!(resolve_options(&config, new, WITH_VAD).vad_model.is_some());
     }
 
     #[test]
     fn test_options_skip_missing_vad_model() {
         let config = config_with("/definitely/missing/silero.bin", "");
         let caps = WhisperCapabilities { vad: true, carry_initial_prompt: true };
-        assert_eq!(resolve_options(&config, caps, ContextMode::Carry).vad_model, None);
+        assert_eq!(resolve_options(&config, caps, WITH_VAD).vad_model, None);
     }
 
     #[test]
     fn test_options_trim_vocabulary_and_only_carry_when_supported() {
         let config = config_with("", "  Annum, Tauri  ");
         let old = WhisperCapabilities::default();
-        let opts = resolve_options(&config, old, ContextMode::Carry);
+        let opts = resolve_options(&config, old, WITH_VAD);
         assert_eq!(opts.prompt.as_deref(), Some("Annum, Tauri"));
         assert!(!opts.carry_prompt);
 
         let empty = config_with("", "   ");
-        assert_eq!(resolve_options(&empty, old, ContextMode::Carry).prompt, None);
+        assert_eq!(resolve_options(&empty, old, WITH_VAD).prompt, None);
     }
 }
