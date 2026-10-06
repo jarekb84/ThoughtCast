@@ -4,7 +4,7 @@ mod recording;
 mod shortcuts;
 
 use audio_cues::{
-    default_cue_path, initialize_default_cues, play_cue_blocking, resolve_cue_path,
+    default_cue_path, initialize_default_cues, play_cue_blocking, play_feedback_cue,
     validate_audio_file, AudioFileValidation, CueType,
 };
 use recording::{
@@ -69,8 +69,13 @@ fn cancel_recording(state: State<AppState>) -> Result<(), String> {
 fn stop_recording(state: State<AppState>, app: tauri::AppHandle) -> Result<Session, String> {
     let recording_state = Arc::clone(&state.inner().recording);
 
-    // Stop recording and save audio (synchronous, fast operation)
-    let session = recording::stop_recording(recording_state.clone())?;
+    // Stop recording and save audio (synchronous, fast operation). The stop
+    // cue starts only once capture has stopped collecting samples, so it can
+    // never bleed into the end of the recording (where Whisper would try to
+    // transcribe it).
+    let session = recording::stop_recording(recording_state.clone(), || {
+        std::thread::spawn(|| play_cue_with_current_config(CueType::Stop));
+    })?;
 
     // Prepare data for async transcription
     let session_id = session.id.clone();
@@ -271,32 +276,18 @@ fn get_compression_progress(state: State<AppState>) -> Result<BatchProgress, Str
 
 #[tauri::command]
 fn play_audio_cue(cue: CueType) -> Result<(), String> {
-    // Resolve config + path on each call so the user's edits take effect
-    // without a restart. Cue failures are non-fatal: we log and swallow.
-    let config = match recording::load_config() {
-        Ok(c) => c,
-        Err(e) => {
-            log::warn!("play_audio_cue: failed to load config, using defaults: {}", e);
-            AppConfig::default()
-        }
-    };
-
-    if !config.audio_feedback.enabled {
-        return Ok(());
-    }
-
-    let path = match resolve_cue_path(cue, &config.audio_feedback) {
-        Ok(p) => p,
-        Err(e) => {
-            log::warn!("play_audio_cue: cue path unresolvable ({}), skipping", e);
-            return Ok(());
-        }
-    };
-
-    if let Err(e) = play_cue_blocking(&path, config.audio_feedback.volume) {
-        log::warn!("play_audio_cue: playback failed ({}), skipping", e);
-    }
+    play_cue_with_current_config(cue);
     Ok(())
+}
+
+/// Resolve config on each call so the user's edits take effect without a
+/// restart. Cue failures are non-fatal: logged and swallowed.
+fn play_cue_with_current_config(cue: CueType) {
+    let config = recording::load_config().unwrap_or_else(|e| {
+        log::warn!("Failed to load config for {:?} cue, using defaults: {}", cue, e);
+        AppConfig::default()
+    });
+    play_feedback_cue(cue, &config.audio_feedback);
 }
 
 #[tauri::command]

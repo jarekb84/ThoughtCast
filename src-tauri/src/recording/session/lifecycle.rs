@@ -92,7 +92,14 @@ pub fn cancel_recording(state: SharedRecordingState) -> Result<(), String> {
 /// Transcription happens asynchronously via process_transcription_async
 ///
 /// Can be called from Recording or Paused state.
-pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
+///
+/// `on_capture_stopped` runs as soon as the capture callback has stopped
+/// collecting samples, before the WAV is written. It's where the stop cue
+/// plays: anything audible from that point on stays out of the recording.
+pub fn stop_recording(
+    state: SharedRecordingState,
+    on_capture_stopped: impl FnOnce(),
+) -> Result<Session, String> {
     let mut state_guard = state.lock().unwrap();
 
     if !state_guard.is_active() {
@@ -114,8 +121,12 @@ pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
     // Mark as processing (this will stop the recording thread)
     state_guard.status = RecordingStatus::Processing;
 
-    // Wait a bit for the recording thread to finish collecting samples
+    // The capture callback only stores samples while the status is
+    // Recording, so from here on nothing new reaches the buffer.
     drop(state_guard);
+    on_capture_stopped();
+
+    // Wait a bit for the recording thread to finish collecting samples
     thread::sleep(std::time::Duration::from_millis(200));
     let state_guard = state.lock().unwrap();
 

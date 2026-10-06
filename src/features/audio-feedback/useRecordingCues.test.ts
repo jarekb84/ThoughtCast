@@ -61,21 +61,6 @@ describe("useRecordingCues", () => {
     });
   });
 
-  it("fires stop cue without awaiting and swallows rejections", async () => {
-    const rejecting = new MockAudioCueService();
-    rejecting.playCue = vi.fn().mockRejectedValue(new Error("boom"));
-    const { result } = renderHook(() => useRecordingCues(), {
-      wrapper: makeWrapper(rejecting),
-    });
-
-    // Synchronous call site — must return void, not throw.
-    expect(() => result.current.playStop()).not.toThrow();
-    await act(async () => {
-      // Let the swallowed-rejection microtask drain.
-      await Promise.resolve();
-    });
-  });
-
   it("fires ready cue without awaiting and swallows rejections", async () => {
     const { result } = renderHook(() => useRecordingCues(), {
       wrapper: makeWrapper(mockService),

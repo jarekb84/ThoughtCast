@@ -21,11 +21,13 @@
 //! default" — resolved at playback time, so the user does not have to manually
 //! enter a path to get the default behavior.
 
+mod dispatch;
 mod initialization;
 mod playback;
 mod path_resolver;
 mod validator;
 
+pub use dispatch::play_feedback_cue;
 pub use initialization::initialize_default_cues;
 pub use path_resolver::{default_cue_path, resolve_cue_path, CueType};
 pub use playback::play_cue_blocking;

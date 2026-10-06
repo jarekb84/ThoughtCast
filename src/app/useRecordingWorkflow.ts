@@ -285,12 +285,9 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
 
   const handleStopRecording = useCallback(async () => {
     try {
-      // Stop cue fires *first*, on user intent, so the audible feedback is
-      // instant rather than gated behind the WAV-save round-trip. Capture is
-      // also winding down on the Rust side in parallel — there is no waveform
-      // pollution risk because mic capture stops the moment stopRecording
-      // executes, before the cue's first sample can reach the mic.
-      cues.playStop();
+      // The stop cue is played by the backend as soon as capture stops.
+      // Firing it from here raced the capture and recorded the cue, which
+      // Whisper then tried to transcribe ("Thank you.").
       setRecordingStatus('processing');
       setIsProcessing(true);
       setStatus("🔄 Saving audio and starting transcription...");
@@ -310,7 +307,7 @@ export function useRecordingWorkflow(): RecordingWorkflowState & RecordingWorkfl
       setRecordingStatus('idle');
       setIsProcessing(false);
     }
-  }, [recordingService, loadSessions, cues]);
+  }, [recordingService, loadSessions]);
 
   // Load sessions on mount
   useEffect(() => {
