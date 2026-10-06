@@ -1,0 +1,102 @@
+.transcription-engine-fieldset {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin: 0 0 var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.transcription-engine-legend {
+  padding: 0 var(--space-xs);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.transcription-engine-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  cursor: pointer;
+  line-height: var(--line-height-normal);
+}
+
+.transcription-engine-radio input {
+  margin-top: 3px;
+}
+
+.transcription-engine-radio-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.transcription-engine-radio-label {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+.transcription-engine-radio-description {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.transcription-subheading {
+  margin: var(--space-lg) 0 var(--space-sm);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.transcription-vocabulary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-lg);
+}
+
+.transcription-vocabulary-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.transcription-vocabulary textarea {
+  min-height: 64px;
+  padding: var(--space-sm) var(--space-md);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  resize: vertical;
+  outline: none;
+}
+
+.transcription-vocabulary textarea:focus {
+  border-color: var(--color-primary-border);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.transcription-help {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.transcription-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.transcription-toggle input {
+  margin-top: 3px;
+}

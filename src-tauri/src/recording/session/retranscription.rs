@@ -153,7 +153,7 @@ fn process_retranscription_async(
         return Err(preview);
     }
 
-    let model_path = config.as_ref().map(|c| c.model_path.clone());
+    let model_path = config.as_ref().map(|c| c.active_model_path().to_string());
 
     session.transcript_path = transcript_path.clone();
     session.preview = preview;

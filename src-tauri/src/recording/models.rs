@@ -215,6 +215,60 @@ impl Default for AudioFeedbackConfig {
     }
 }
 
+/// Which local speech-to-text engine transcribes recordings.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum TranscriptionEngine {
+    /// whisper.cpp's `whisper-cli` (`whisperPath` + `modelPath`).
+    #[default]
+    Whisper,
+    /// NVIDIA Parakeet through whisper.cpp's `parakeet-cli` (whisper.cpp 1.9+).
+    Parakeet,
+}
+
+/// Engine choice and accuracy options, persisted under `transcription` in
+/// config.json. Every field defaults to the behavior before these options
+/// existed, except repetition repair, which only acts on detected loops.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TranscriptionConfig {
+    #[serde(rename = "engine", default)]
+    pub engine: TranscriptionEngine,
+    /// Silero VAD model (e.g. `ggml-silero-v6.2.0.bin`). When set, Whisper
+    /// only decodes detected speech, which stops it from hallucinating over
+    /// silence and pauses. Needs whisper.cpp 1.7.6+.
+    #[serde(rename = "vadModelPath", default)]
+    pub vad_model_path: String,
+    /// Names and terms the user says often (products, people, jargon), given
+    /// to Whisper as its initial prompt so it spells them correctly.
+    #[serde(rename = "vocabulary", default)]
+    pub vocabulary: String,
+    /// Detect Whisper repetition loops, re-run the audio without carried
+    /// context, and remove any repeats that remain.
+    #[serde(rename = "repairRepetitions", default = "default_repair_repetitions")]
+    pub repair_repetitions: bool,
+    #[serde(rename = "parakeetPath", default)]
+    pub parakeet_path: String,
+    #[serde(rename = "parakeetModelPath", default)]
+    pub parakeet_model_path: String,
+}
+
+fn default_repair_repetitions() -> bool {
+    true
+}
+
+impl Default for TranscriptionConfig {
+    fn default() -> Self {
+        Self {
+            engine: TranscriptionEngine::default(),
+            vad_model_path: String::new(),
+            vocabulary: String::new(),
+            repair_repetitions: default_repair_repetitions(),
+            parakeet_path: String::new(),
+            parakeet_model_path: String::new(),
+        }
+    }
+}
+
 /// Persisted application configuration
 ///
 /// Loaded from / saved to `~/Documents/ThoughtCast/config.json`. New fields
@@ -237,6 +291,8 @@ pub struct AppConfig {
     pub audio_feedback: AudioFeedbackConfig,
     #[serde(rename = "audioChunking", default)]
     pub audio_chunking: AudioChunkingConfig,
+    #[serde(rename = "transcription", default)]
+    pub transcription: TranscriptionConfig,
 }
 
 impl Default for AppConfig {
@@ -250,6 +306,18 @@ impl Default for AppConfig {
             keyboard_shortcuts: KeyboardShortcutsConfig::default(),
             audio_feedback: AudioFeedbackConfig::default(),
             audio_chunking: AudioChunkingConfig::default(),
+            transcription: TranscriptionConfig::default(),
+        }
+    }
+}
+
+impl AppConfig {
+    /// Model file of the active engine. Recorded on each session so
+    /// transcription-time estimates only compare like with like.
+    pub fn active_model_path(&self) -> &str {
+        match self.transcription.engine {
+            TranscriptionEngine::Whisper => &self.model_path,
+            TranscriptionEngine::Parakeet => &self.transcription.parakeet_model_path,
         }
     }
 }
@@ -586,5 +654,29 @@ mod tests {
         assert_eq!(session.chunking_analysis_seconds, Some(4.2));
         assert_eq!(session.chunk_count, Some(3));
         assert_eq!(session.chunking_used_fallback, Some(false));
+    }
+
+    #[test]
+    fn test_transcription_config_defaults_when_missing() {
+        let config: AppConfig =
+            serde_json::from_str(r#"{"whisperPath": "/w", "modelPath": "/m.bin"}"#).unwrap();
+        assert_eq!(config.transcription.engine, TranscriptionEngine::Whisper);
+        assert_eq!(config.transcription.vad_model_path, "");
+        assert_eq!(config.transcription.vocabulary, "");
+        assert!(config.transcription.repair_repetitions);
+        assert_eq!(config.active_model_path(), "/m.bin");
+    }
+
+    #[test]
+    fn test_transcription_config_round_trip_with_parakeet() {
+        let json = r#"{"modelPath": "/m.bin", "transcription": {"engine": "parakeet",
+            "parakeetPath": "/p", "parakeetModelPath": "/p.bin", "repairRepetitions": false}}"#;
+        let config: AppConfig = serde_json::from_str(json).unwrap();
+        assert_eq!(config.transcription.engine, TranscriptionEngine::Parakeet);
+        assert!(!config.transcription.repair_repetitions);
+        assert_eq!(config.active_model_path(), "/p.bin");
+
+        let back = serde_json::to_string(&config).unwrap();
+        assert!(back.contains(r#""engine":"parakeet""#), "got {}", back);
     }
 }

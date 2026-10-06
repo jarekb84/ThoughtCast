@@ -1,6 +1,10 @@
 pub mod audio_decoder;
 pub mod chunked_orchestrator;
+pub mod cli_capabilities;
+pub mod cli_runner;
 pub mod engine;
+pub mod parakeet_cli;
+pub mod repetition;
 pub mod text_processor;
 pub mod whisper_cli;
 

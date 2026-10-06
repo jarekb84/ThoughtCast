@@ -165,7 +165,7 @@ pub fn process_transcription_async(
         );
     let transcription_elapsed = transcription_start.elapsed().as_secs_f64();
 
-    let model_path = config.as_ref().map(|c| c.model_path.clone());
+    let model_path = config.as_ref().map(|c| c.active_model_path().to_string());
 
     let updated_session = {
         let session = index

@@ -113,6 +113,41 @@ describe("useSettingsForm", () => {
     );
   });
 
+  it("setTranscriptionField updates the transcription section only", async () => {
+    const { result } = renderHook(() => useSettingsForm(), {
+      wrapper: makeWrapper(svc),
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() => result.current.setTranscriptionField("engine", "parakeet"));
+    act(() => result.current.setTranscriptionField("vocabulary", "Annum"));
+
+    expect(result.current.draft.transcription.engine).toBe("parakeet");
+    expect(result.current.draft.transcription.vocabulary).toBe("Annum");
+    expect(result.current.draft.transcription.repairRepetitions).toBe(true);
+    expect(result.current.isDirty).toBe(true);
+  });
+
+  it("revalidatePath reads nested path fields by dotted name", async () => {
+    const { result } = renderHook(() => useSettingsForm(), {
+      wrapper: makeWrapper(svc),
+    });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    act(() =>
+      result.current.setTranscriptionField("vadModelPath", "/m/silero.bin")
+    );
+    await act(async () => {
+      await result.current.revalidatePath("transcription.vadModelPath", "file");
+    });
+
+    const status = result.current.pathValidations["transcription.vadModelPath"];
+    expect(status?.state).toBe("result");
+    if (status?.state === "result") {
+      expect(status.result.exists).toBe(true);
+    }
+  });
+
   it("revalidatePath stores the validation result", async () => {
     const { result } = renderHook(() => useSettingsForm(), {
       wrapper: makeWrapper(svc),
