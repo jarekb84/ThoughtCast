@@ -3,6 +3,7 @@
 //! the clipboard, and persist the result on the session row. Shared by the
 //! stop-recording flow and the retranscribe flow.
 
+use crate::recording::audio::{analyze_wav, RecordingQuality};
 use crate::recording::compression::{run_post_transcription_compression, SessionAudioCompressedEvent};
 use crate::recording::models::{AppConfig, Session};
 use crate::recording::state::{RecordingStatus, SharedRecordingState};
@@ -154,6 +155,8 @@ pub fn process_transcription_async(
     // single-shot) and the model-path telemetry the estimator needs.
     let config = crate::recording::load_config().ok();
 
+    let recording_quality = measure_recording_quality(&audio_path);
+
     let transcription_start = Instant::now();
     let (transcript_path, preview, clipboard_copied, chunking_telemetry) =
         run_transcription_route(
@@ -186,6 +189,9 @@ pub fn process_transcription_async(
             session.chunking_analysis_seconds = Some(telemetry.analysis_seconds);
             session.chunk_count = Some(telemetry.chunk_count);
             session.chunking_used_fallback = Some(telemetry.used_fallback);
+        }
+        if recording_quality.is_some() {
+            session.recording_quality = recording_quality;
         }
 
         session.clone()
@@ -230,6 +236,18 @@ pub(super) fn run_transcription_route(
         Err(e) => {
             log::error!("Transcription failed: {}", e);
             (String::new(), format!("Transcription failed: {}", e), false, None)
+        }
+    }
+}
+
+/// Measure the recording's signal health from the WAV about to be
+/// transcribed. Advisory only: a failure is logged and leaves the field empty.
+pub(super) fn measure_recording_quality(wav_path: &Path) -> Option<RecordingQuality> {
+    match analyze_wav(wav_path) {
+        Ok(quality) => quality,
+        Err(e) => {
+            log::warn!("Recording quality analysis skipped: {}", e);
+            None
         }
     }
 }

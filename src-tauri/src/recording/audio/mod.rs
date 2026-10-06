@@ -1,7 +1,9 @@
 pub mod capture;
 pub mod level_calculator;
+pub mod quality;
 pub mod writer;
 
 pub use capture::start_capture;
 pub use level_calculator::get_audio_levels;
+pub use quality::{analyze_wav, RecordingQuality};
 pub use writer::{read_wav_duration_seconds, write_wav_file};

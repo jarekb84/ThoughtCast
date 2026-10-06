@@ -1,3 +1,4 @@
+use crate::recording::audio::RecordingQuality;
 use serde::{Deserialize, Serialize};
 
 /// Represents a single recording session with its metadata
@@ -31,6 +32,11 @@ pub struct Session {
     /// user knows the seam may be rougher than usual.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chunking_used_fallback: Option<bool>,
+    /// Signal-level health of the recording (voice level, background noise,
+    /// clipping), measured when it's transcribed. None for sessions
+    /// transcribed before this existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recording_quality: Option<RecordingQuality>,
 }
 
 /// Index containing all recording sessions
@@ -354,6 +360,7 @@ mod tests {
             chunking_analysis_seconds: None,
             chunk_count: None,
             chunking_used_fallback: None,
+            recording_quality: None,
         };
 
         let json = serde_json::to_string(&session).unwrap();
@@ -407,6 +414,7 @@ mod tests {
                 chunking_analysis_seconds: None,
                 chunk_count: None,
                 chunking_used_fallback: None,
+                recording_quality: None,
             },
             Session {
                 id: "session2".to_string(),
@@ -421,6 +429,7 @@ mod tests {
                 chunking_analysis_seconds: None,
                 chunk_count: None,
                 chunking_used_fallback: None,
+                recording_quality: None,
             },
         ];
 
