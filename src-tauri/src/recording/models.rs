@@ -254,10 +254,6 @@ impl Default for AppConfig {
     }
 }
 
-/// Backwards-compatible alias for code that still references the old type name.
-/// Prefer `AppConfig` in new code.
-pub type WhisperConfig = AppConfig;
-
 /// Event payload for transcription completion
 #[derive(Debug, Clone, Serialize)]
 pub struct TranscriptionCompleteEvent {

@@ -4,7 +4,7 @@
 
 use crate::recording::chunking::{plan_and_split, ChunkingError};
 use crate::recording::models::AppConfig;
-use crate::recording::transcription::engine::transcribe_audio_file;
+use crate::recording::transcription::engine::transcribe_file;
 use crate::recording::transcription::text_processor::save_transcript;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -101,7 +101,7 @@ fn run_chunked_transcription(
     let mut chunk_texts: Vec<String> = Vec::with_capacity(outcome.chunk_files.len());
     for (idx, chunk_path) in outcome.chunk_files.iter().enumerate() {
         on_progress((idx as u32) + 1, chunk_count);
-        let text = transcribe_audio_file(chunk_path)?;
+        let text = transcribe_file(chunk_path, config)?;
         chunk_texts.push(text);
     }
 

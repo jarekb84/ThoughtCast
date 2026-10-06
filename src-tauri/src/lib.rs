@@ -81,31 +81,37 @@ fn stop_recording(state: State<AppState>, app: tauri::AppHandle) -> Result<Sessi
         recording_state,
         session_id,
         audio_path,
-        move |result| match result {
-            TranscriptionResult::Success(updated_session) => {
-                let _ = app.emit(
-                    "transcription-complete",
-                    TranscriptionCompleteEvent {
-                        session: updated_session,
-                    },
-                );
-            }
-            TranscriptionResult::Progress(progress) => {
-                let _ = app.emit("transcription-progress", progress);
-            }
-            TranscriptionResult::Compressed(compression_event) => {
-                let _ = app.emit("session-audio-compressed", compression_event);
-            }
-            TranscriptionResult::Error { session_id, error } => {
-                let _ = app.emit(
-                    "transcription-error",
-                    TranscriptionErrorEvent { session_id, error },
-                );
-            }
-        },
+        move |result| emit_transcription_result(&app, result),
     );
 
     Ok(session)
+}
+
+/// Forward a transcription pipeline event (from a recording or a
+/// retranscribe) to the frontend's event bus.
+fn emit_transcription_result(app: &tauri::AppHandle, result: TranscriptionResult) {
+    match result {
+        TranscriptionResult::Success(updated_session) => {
+            let _ = app.emit(
+                "transcription-complete",
+                TranscriptionCompleteEvent {
+                    session: updated_session,
+                },
+            );
+        }
+        TranscriptionResult::Progress(progress) => {
+            let _ = app.emit("transcription-progress", progress);
+        }
+        TranscriptionResult::Compressed(compression_event) => {
+            let _ = app.emit("session-audio-compressed", compression_event);
+        }
+        TranscriptionResult::Error { session_id, error } => {
+            let _ = app.emit(
+                "transcription-error",
+                TranscriptionErrorEvent { session_id, error },
+            );
+        }
+    }
 }
 
 #[tauri::command]
@@ -211,28 +217,7 @@ fn retranscribe_session(
     recording::orchestrate_async_retranscription(
         recording_state,
         session_id,
-        move |result| match result {
-            TranscriptionResult::Success(updated_session) => {
-                let _ = app.emit(
-                    "transcription-complete",
-                    TranscriptionCompleteEvent {
-                        session: updated_session,
-                    },
-                );
-            }
-            TranscriptionResult::Progress(progress) => {
-                let _ = app.emit("transcription-progress", progress);
-            }
-            TranscriptionResult::Compressed(compression_event) => {
-                let _ = app.emit("session-audio-compressed", compression_event);
-            }
-            TranscriptionResult::Error { session_id, error } => {
-                let _ = app.emit(
-                    "transcription-error",
-                    TranscriptionErrorEvent { session_id, error },
-                );
-            }
-        },
+        move |result| emit_transcription_result(&app, result),
     );
 
     Ok(session)
