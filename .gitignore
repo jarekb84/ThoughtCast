@@ -38,3 +38,6 @@ build/
 
 # Local build versioning
 .local-build-counter
+
+# Raw voice notes and supporting audio for agent sessions
+docs/voiceNotes/

@@ -5,6 +5,7 @@ import {
   AudioFeedbackConfig,
   KeyboardShortcutsConfig,
   AudioChunkingConfig,
+  TranscriptionConfig,
 } from "./appConfig";
 
 /**
@@ -32,6 +33,10 @@ export function mergeConfigDefaults(
   >;
   const chunkingPartial = (partial.audioChunking ?? {}) as Partial<
     AudioChunkingConfig
+  >;
+
+  const transcriptionPartial = (partial.transcription ?? {}) as Partial<
+    TranscriptionConfig
   >;
 
   return {
@@ -92,5 +97,16 @@ export function mergeConfigDefaults(
         chunkingPartial.minSilenceDurationSec ??
         DEFAULT_APP_CONFIG.audioChunking.minSilenceDurationSec,
     },
+    transcription: {
+      ...DEFAULT_APP_CONFIG.transcription,
+      ...withoutUndefined(transcriptionPartial),
+    },
   };
+}
+
+/** Drop keys whose value is undefined so they don't override defaults. */
+function withoutUndefined<T extends object>(partial: Partial<T>): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(partial).filter(([, value]) => value !== undefined)
+  ) as Partial<T>;
 }

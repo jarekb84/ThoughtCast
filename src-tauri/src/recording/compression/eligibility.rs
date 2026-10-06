@@ -79,6 +79,7 @@ mod tests {
             chunking_analysis_seconds: None,
             chunk_count: None,
             chunking_used_fallback: None,
+            recording_quality: None,
         }
     }
 

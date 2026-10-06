@@ -56,6 +56,26 @@ export interface AudioChunkingConfig {
   minSilenceDurationSec: number;
 }
 
+/** Which local speech-to-text engine transcribes recordings. */
+export type TranscriptionEngine = "whisper" | "parakeet";
+
+/**
+ * Engine choice and accuracy options. Mirrors the Rust `TranscriptionConfig`.
+ * Whisper-only options are skipped automatically when the installed
+ * whisper-cli is too old to support them.
+ */
+export interface TranscriptionConfig {
+  engine: TranscriptionEngine;
+  /** Silero VAD model file; enables voice activity detection when set. */
+  vadModelPath: string;
+  /** Names and terms passed to Whisper as its initial prompt. */
+  vocabulary: string;
+  /** Detect Whisper repetition loops, retry, and remove leftover repeats. */
+  repairRepetitions: boolean;
+  parakeetPath: string;
+  parakeetModelPath: string;
+}
+
 export interface AppConfig {
   whisperPath: string;
   modelPath: string;
@@ -65,6 +85,7 @@ export interface AppConfig {
   keyboardShortcuts: KeyboardShortcutsConfig;
   audioFeedback: AudioFeedbackConfig;
   audioChunking: AudioChunkingConfig;
+  transcription: TranscriptionConfig;
 }
 
 export type PathKind = "executable" | "file" | "ffmpeg";
@@ -114,6 +135,14 @@ export const DEFAULT_APP_CONFIG: AppConfig = {
     maxChunkDurationSec: 10 * 60,
     silenceThresholdDb: -35,
     minSilenceDurationSec: 0.5,
+  },
+  transcription: {
+    engine: "whisper",
+    vadModelPath: "",
+    vocabulary: "",
+    repairRepetitions: true,
+    parakeetPath: "",
+    parakeetModelPath: "",
   },
 };
 

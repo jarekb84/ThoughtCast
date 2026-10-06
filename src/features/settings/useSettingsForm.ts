@@ -11,6 +11,10 @@ import {
   validateSettingsDraft,
 } from "./validateSettingsDraft";
 import { logger } from "../../shared/utils/logger";
+import { readConfigString } from "./readConfigString";
+
+/** Config sections edited field by field. */
+type EditableSection = "audioCompression" | "audioChunking" | "transcription";
 
 export type ValidationStatus =
   | { state: "idle" }
@@ -39,6 +43,10 @@ export interface SettingsFormActions {
   setChunkingField: <K extends keyof AppConfig["audioChunking"]>(
     key: K,
     value: AppConfig["audioChunking"][K]
+  ) => void;
+  setTranscriptionField: <K extends keyof AppConfig["transcription"]>(
+    key: K,
+    value: AppConfig["transcription"][K]
   ) => void;
   revalidatePath: (pathField: string, kind: PathKind) => Promise<void>;
   save: () => Promise<{ ok: boolean }>;
@@ -95,35 +103,47 @@ export function useSettingsForm(): SettingsFormState & SettingsFormActions {
     []
   );
 
+  const setSectionField = useCallback(
+    <S extends EditableSection, K extends keyof AppConfig[S]>(
+      section: S,
+      key: K,
+      value: AppConfig[S][K]
+    ) => {
+      setDraft((prev) => ({
+        ...prev,
+        [section]: { ...prev[section], [key]: value },
+      }));
+    },
+    []
+  );
+
   const setCompressionField = useCallback(
     <K extends keyof AppConfig["audioCompression"]>(
       key: K,
       value: AppConfig["audioCompression"][K]
-    ) => {
-      setDraft((prev) => ({
-        ...prev,
-        audioCompression: { ...prev.audioCompression, [key]: value },
-      }));
-    },
-    []
+    ) => setSectionField("audioCompression", key, value),
+    [setSectionField]
   );
 
   const setChunkingField = useCallback(
     <K extends keyof AppConfig["audioChunking"]>(
       key: K,
       value: AppConfig["audioChunking"][K]
-    ) => {
-      setDraft((prev) => ({
-        ...prev,
-        audioChunking: { ...prev.audioChunking, [key]: value },
-      }));
-    },
-    []
+    ) => setSectionField("audioChunking", key, value),
+    [setSectionField]
+  );
+
+  const setTranscriptionField = useCallback(
+    <K extends keyof AppConfig["transcription"]>(
+      key: K,
+      value: AppConfig["transcription"][K]
+    ) => setSectionField("transcription", key, value),
+    [setSectionField]
   );
 
   const revalidatePath = useCallback(
     async (pathField: string, kind: PathKind) => {
-      const path = readStringField(draft, pathField);
+      const path = readConfigString(draft, pathField);
       const seq = (validationSequenceRef.current[pathField] ?? 0) + 1;
       validationSequenceRef.current[pathField] = seq;
       setPathValidations((prev) => ({
@@ -200,14 +220,10 @@ export function useSettingsForm(): SettingsFormState & SettingsFormActions {
     setField,
     setCompressionField,
     setChunkingField,
+    setTranscriptionField,
     revalidatePath,
     save,
     cancel,
     reload,
   };
-}
-
-function readStringField(config: AppConfig, key: string): string {
-  const value = (config as unknown as Record<string, unknown>)[key];
-  return typeof value === "string" ? value : "";
 }

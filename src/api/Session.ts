@@ -22,6 +22,26 @@ export interface Session {
   chunk_count?: number;
   /** True when the planner had to fall back to a hard cut (no silence in window). */
   chunking_used_fallback?: boolean;
+  /** Signal-level health measured at transcription. Absent for older sessions. */
+  recording_quality?: RecordingQuality;
+}
+
+export type QualityRating = 'good' | 'fair' | 'poor';
+export type QualityIssue = 'too-quiet' | 'noisy' | 'clipping' | 'uneven-level';
+
+/**
+ * Mirrors Rust `RecordingQuality` (recording/audio/quality.rs). Levels are
+ * dBFS of 50 ms frames: speech = 90th percentile, noise floor = 10th.
+ */
+export interface RecordingQuality {
+  speech_level_db: number;
+  noise_floor_db: number;
+  snr_db: number;
+  clipped_percent: number;
+  /** Spread of the speech level between the loudest and quietest minutes. */
+  level_swing_db: number;
+  rating: QualityRating;
+  issues: QualityIssue[];
 }
 
 /**

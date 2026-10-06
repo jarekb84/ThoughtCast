@@ -18,11 +18,12 @@
     "type-check": "tsc --noEmit",
     "rust:check": "cd src-tauri && cargo check",
     "rust:test": "cd src-tauri && cargo test",
+    "check:size": "node scripts/check-size.mjs",
     "prepare": "husky",
     "knip": "knip --fix-type files,exports,types",
     "precheck:js": "npm run type-check && npm run test",
     "precheck:rust": "npm run rust:check && npm run rust:test",
-    "integration-precheck": "npm run precheck:js && npm run precheck:rust"
+    "integration-precheck": "npm run check:size && npm run precheck:js && npm run precheck:rust"
   },
   "repository": {
     "type": "git",

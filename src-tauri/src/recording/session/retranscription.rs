@@ -1,7 +1,7 @@
 use crate::recording::audio::read_wav_duration_seconds;
 use crate::recording::models::{AppConfig, Session, PROCESSING_PREVIEW};
 use crate::recording::session::transcription_orchestration::{
-    run_transcription_route, ChunkProgressEvent, TranscriptionResult,
+    measure_recording_quality, run_transcription_route, ChunkProgressEvent, TranscriptionResult,
 };
 use crate::recording::state::SharedRecordingState;
 use crate::recording::transcription::decode_to_wav;
@@ -130,6 +130,8 @@ fn process_retranscription_async(
     let chunking_duration =
         chunking_duration_for(&transcription_input, session_wall_clock_duration);
 
+    let recording_quality = measure_recording_quality(&transcription_input);
+
     let transcription_start = Instant::now();
     let (transcript_path, preview, clipboard_copied, chunking_telemetry) = run_transcription_route(
         &transcription_input,
@@ -148,7 +150,7 @@ fn process_retranscription_async(
         return Err(preview);
     }
 
-    let model_path = config.as_ref().map(|c| c.model_path.clone());
+    let model_path = config.as_ref().map(|c| c.active_model_path().to_string());
 
     session.transcript_path = transcript_path.clone();
     session.preview = preview;
@@ -170,6 +172,9 @@ fn process_retranscription_async(
         session.chunking_analysis_seconds = Some(telemetry.analysis_seconds);
         session.chunk_count = Some(telemetry.chunk_count);
         session.chunking_used_fallback = Some(telemetry.used_fallback);
+    }
+    if recording_quality.is_some() {
+        session.recording_quality = recording_quality;
     }
 
     let updated = session.clone();

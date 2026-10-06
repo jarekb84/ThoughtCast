@@ -1,300 +1,112 @@
-# Setting Up Whisper Transcription
+# Setting Up Local Transcription
 
-This guide walks you through setting up Whisper.cpp for automatic transcription in ThoughtCast.
+ThoughtCast transcribes on your machine with [whisper.cpp](https://github.com/ggml-org/whisper.cpp). You install whisper.cpp and a model once, then point ThoughtCast at them in **Settings → Transcription**. Nothing is sent anywhere.
 
-## Prerequisites
+What you need:
 
-Before you start, you need:
-- ThoughtCast installed and running
-- Whisper.cpp compiled on your machine
-- A Whisper model file downloaded
+| Piece | Recommended | Required? |
+| --- | --- | --- |
+| whisper.cpp | 1.9.x (1.7.6+ for voice activity detection) | Yes |
+| Whisper model | `ggml-large-v3-turbo.bin` | Yes |
+| Silero VAD model | `ggml-silero-v6.2.0.bin` | Strongly recommended |
+| FFmpeg | any recent version | For long recordings (chunking) and audio compression |
+| Parakeet model | `ggml-parakeet-tdt-0.6b-v3-f16.bin` | Only for the Parakeet engine |
 
-## Step 1: Install Whisper.cpp
+[transcription-accuracy.md](transcription-accuracy.md) explains why these are the recommendations.
 
-### Option A: Build from Source (Recommended)
+## 1. Install whisper.cpp
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/ggerganov/whisper.cpp.git
-   cd whisper.cpp
-   ```
+### Windows: prebuilt binaries
 
-2. **Build for Windows:**
-   ```bash
-   mkdir build
-   cd build
-   cmake ..
-   cmake --build . --config Release
-   ```
+Download the latest release from [whisper.cpp releases](https://github.com/ggml-org/whisper.cpp/releases):
 
-   The executable will be at: `build/bin/Release/whisper-cli.exe`
+- NVIDIA GPU: `whisper-bin-win-cuda-12.4.0-x64.zip` (or the CUDA 11.8 build for older drivers)
+- No NVIDIA GPU: `whisper-bin-x64.zip`
 
-3. **Build for macOS:**
-   ```bash
-   make
-   ```
+Unzip it somewhere permanent, e.g. `C:\Tools\whisper.cpp-1.9.5\`. The `Release` folder contains `whisper-cli.exe` and `parakeet-cli.exe`.
 
-   The executable will be at: `./main`
+### macOS (Apple Silicon): build from source
 
-### Option B: Pre-built Binaries
+```bash
+git clone https://github.com/ggml-org/whisper.cpp.git
+cd whisper.cpp
+cmake -B build
+cmake --build build -j --config Release
+```
 
-Check the [Whisper.cpp releases page](https://github.com/ggerganov/whisper.cpp/releases) for pre-built binaries (availability varies).
+Metal acceleration is on by default. The binaries are `build/bin/whisper-cli` and `build/bin/parakeet-cli`.
 
-## Step 2: Download a Model
+### Upgrading an existing install
 
-1. **Navigate to your whisper.cpp directory:**
-   ```bash
-   cd whisper.cpp
-   ```
+Pull and rebuild (or unzip the new release next to the old one), then point Settings at the new `whisper-cli`. ThoughtCast checks the binary's `--help` and only passes options it supports, so an older build keeps working: it just skips voice activity detection and the carried vocabulary prompt. Check your version with `whisper-cli --version` (1.8.7+).
 
-2. **Download a model using the provided script:**
+## 2. Download the models
 
-   **For quick testing (smallest, fastest):**
-   ```bash
-   bash ./models/download-ggml-model.sh base
-   ```
+From the whisper.cpp folder (macOS/Linux):
 
-   **For better accuracy:**
-   ```bash
-   bash ./models/download-ggml-model.sh large-v3-turbo
-   ```
+```bash
+bash ./models/download-ggml-model.sh large-v3-turbo
+bash ./models/download-vad-model.sh silero-v6.2.0
+```
 
-   **For best accuracy (slower):**
-   ```bash
-   bash ./models/download-ggml-model.sh large-v3
-   ```
+Or download directly:
 
-3. **Model files will be saved to:** `models/ggml-{name}.bin`
+- Whisper: [ggml-large-v3-turbo.bin](https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin) (1.6 GB)
+- VAD: [ggml-silero-v6.2.0.bin](https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v6.2.0.bin) (under 1 MB)
+- Parakeet (optional): [ggml-parakeet-tdt-0.6b-v3-f16.bin](https://huggingface.co/ggml-org/parakeet-GGUF/resolve/main/ggml-parakeet-tdt-0.6b-v3-f16.bin) (1.2 GB; `q8_0` is half the size)
 
-### Model Comparison
+Model choice: `large-v3-turbo` is the most accurate in practice. `large-v3` is several times slower and more prone to repetition loops; the smaller models (`base`, `small`) are only worth it on slow machines.
 
-| Model | Size | Speed | Accuracy | Recommended For |
-|-------|------|-------|----------|-----------------|
-| `tiny` | 75 MB | Very Fast | Basic | Testing only |
-| `base` | 142 MB | Fast | Good | Quick notes |
-| `small` | 466 MB | Medium | Better | General use |
-| `medium` | 1.5 GB | Slow | Great | Important recordings |
-| `large-v3-turbo` | 809 MB | Fast | Excellent | **Best balance** ⭐ |
-| `large-v3` | 3.1 GB | Very Slow | Best | Maximum accuracy |
+## 3. Configure ThoughtCast
 
-**Recommendation:** Start with `large-v3-turbo` for the best speed/accuracy balance.
+Open **Settings → Transcription**:
 
-## Step 3: Create Configuration File
+1. **Engine:** Whisper (recommended) or Parakeet.
+2. **Whisper CLI** and **Model file:** the paths from steps 1 and 2.
+3. **Voice activity detection model:** the Silero file. With voice activity detection Whisper only decodes detected speech, which reliably stops repetition loops, but it can skip a few quiet words. So with loop repair on, it's used as the last-resort retry for audio that keeps looping; with repair off, it's used on every pass.
+4. **Vocabulary:** names and terms you say often, comma-separated (product names, people, jargon). Whisper uses them as a spelling hint. Keep it to a few dozen terms.
+5. **Repair repetition loops:** leave on. If Whisper repeats a phrase over and over, ThoughtCast re-transcribes that chunk (first without carried context, then with voice activity detection) and removes any repeats that remain.
 
-1. **Find your ThoughtCast data directory:**
-   - **Windows:** `C:\Users\YourName\Documents\ThoughtCast\`
-   - **macOS:** `~/Documents/ThoughtCast/`
+Set **FFmpeg** under the Audio Compression tab; long recordings are split at pauses before transcribing (Settings → Transcription → Audio Chunking).
 
-2. **Create `config.json` in that directory:**
-
-### Windows Example
-
-Create: `C:\Users\YourName\Documents\ThoughtCast\config.json`
+Settings are saved to `config.json` in your ThoughtCast folder (`C:\Users\<you>\Documents\ThoughtCast\` or `~/Documents/ThoughtCast/`). The equivalent file:
 
 ```json
 {
-  "whisperPath": "C:\\Source\\whisper.cpp\\build\\bin\\Release\\whisper-cli.exe",
-  "modelPath": "C:\\Source\\whisper.cpp\\models\\ggml-large-v3-turbo.bin"
+  "whisperPath": "C:\\Tools\\whisper.cpp-1.9.5\\Release\\whisper-cli.exe",
+  "modelPath": "C:\\Tools\\models\\ggml-large-v3-turbo.bin",
+  "ffmpegPath": "C:\\ProgramData\\chocolatey\\bin\\ffmpeg.exe",
+  "transcription": {
+    "engine": "whisper",
+    "vadModelPath": "C:\\Tools\\models\\ggml-silero-v6.2.0.bin",
+    "vocabulary": "ThoughtCast, Claude, Tauri",
+    "repairRepetitions": true,
+    "parakeetPath": "C:\\Tools\\whisper.cpp-1.9.5\\Release\\parakeet-cli.exe",
+    "parakeetModelPath": "C:\\Tools\\models\\ggml-parakeet-tdt-0.6b-v3-f16.bin"
+  }
 }
 ```
 
-**Important:** Use double backslashes `\\` in Windows paths!
+## 4. Test it
 
-### macOS Example
+Record a short note and stop. The transcript appears in the session list and is copied to the clipboard. Session Details also shows a **Mic signal** rating with your voice and background levels; if it says Fair or Poor, the tips there (usually: get closer to the mic, or use a headset) do more for accuracy than any model change.
 
-Create: `~/Documents/ThoughtCast/config.json`
-
-```json
-{
-  "whisperPath": "/usr/local/bin/whisper",
-  "modelPath": "/Users/yourname/whisper.cpp/models/ggml-large-v3-turbo.bin"
-}
-```
-
-### Tips for Path Configuration
-
-**Finding your Whisper executable:**
-- Windows: Look in `whisper.cpp\build\bin\Release\whisper-cli.exe`
-- macOS: The executable is usually named `main` in the whisper.cpp root directory
-
-**Finding your model file:**
-- Always in the `models/` subdirectory of your whisper.cpp installation
-- Named like: `ggml-base.bin`, `ggml-large-v3-turbo.bin`, etc.
-
-**Path format:**
-- Windows: Use `C:\\path\\to\\file.exe` (double backslashes)
-- macOS: Use `/path/to/file` (forward slashes)
-- Always use absolute paths, not relative paths
-
-## Step 4: Test Your Configuration
-
-1. **Open ThoughtCast**
-
-2. **Record a test:**
-   - Click the **Record** button
-   - Say: "This is a test recording for ThoughtCast"
-   - Click **Stop**
-
-3. **Watch the status:**
-   - You should see: "Saving and transcribing audio..."
-   - Then: "Transcription complete!"
-
-4. **Check the transcript:**
-   - The sidebar should show your spoken text
-   - Click the session to see the full transcript
+To re-run an older session with new settings, select it and click **Re-transcribe**.
 
 ## Troubleshooting
 
-### Error: "Config file not found"
+**"Whisper.cpp is not set up" / "model file is missing":** the path in Settings doesn't exist. Use Browse… and check the green tick under each field.
 
-**Problem:** ThoughtCast can't find your config.json
+**Transcription fails right after upgrading whisper.cpp:** run the binary by hand to see the error:
 
-**Solution:**
-1. Check you created the file in the correct location
-2. Windows: `C:\Users\YourName\Documents\ThoughtCast\config.json`
-3. macOS: `~/Documents/ThoughtCast/config.json`
-
-### Error: "Whisper executable not found"
-
-**Problem:** The path to your Whisper executable is wrong
-
-**Solution:**
-1. Open your config.json
-2. Verify the `whisperPath` points to the actual executable file
-3. Test the path in your terminal:
-   ```bash
-   # Windows
-   C:\Source\whisper.cpp\build\bin\Release\whisper-cli.exe --help
-
-   # macOS
-   /usr/local/bin/whisper --help
-   ```
-4. If the command works, copy that exact path into config.json
-
-### Error: "Whisper model not found"
-
-**Problem:** The path to your model file is wrong
-
-**Solution:**
-1. Check your `models/` directory in whisper.cpp
-2. List the files:
-   ```bash
-   # Windows
-   dir C:\Source\whisper.cpp\models\
-
-   # macOS
-   ls ~/whisper.cpp/models/
-   ```
-3. Copy the full path to the `.bin` file into `modelPath`
-
-### Transcription shows garbage text
-
-**Problem:** Model or audio format issue
-
-**Solutions:**
-1. Try a different model (download `base` or `large-v3-turbo`)
-2. Verify your audio is being recorded (check the .wav file in `audio/` folder)
-3. Make sure you're using a model in the correct format (ggml-*.bin)
-
-### Transcription is very slow
-
-**Problem:** Model is too large for your hardware
-
-**Solutions:**
-1. Use a smaller model (try `base` or `large-v3-turbo`)
-2. Enable GPU acceleration (requires rebuilding Whisper.cpp with CUDA/Metal support)
-3. Close other applications while transcribing
-
-### No error but transcript is empty
-
-**Problem:** Whisper ran but produced no output
-
-**Solutions:**
-1. Test Whisper directly from command line:
-   ```bash
-   # Windows
-   C:\Source\whisper.cpp\build\bin\Release\whisper-cli.exe -m C:\Source\whisper.cpp\models\ggml-base.bin -f test.wav
-
-   # macOS
-   ./main -m models/ggml-base.bin -f test.wav
-   ```
-2. If Whisper works standalone, check file permissions on your Documents folder
-3. Try recording a longer clip (5+ seconds)
-
-## Advanced Configuration
-
-### Using GPU Acceleration
-
-If you have an NVIDIA GPU (Windows) or Apple Silicon (macOS), you can enable GPU acceleration for much faster transcription.
-
-**NVIDIA GPU (CUDA):**
 ```bash
-cd whisper.cpp
-mkdir build
-cd build
-cmake .. -DWHISPER_CUDA=ON
-cmake --build . --config Release
+whisper-cli -m ggml-large-v3-turbo.bin -f some-recording.wav
 ```
 
-**Apple Silicon (Metal):**
-```bash
-cd whisper.cpp
-make WHISPER_METAL=1
-```
+On Windows, the CUDA build needs its DLLs next to `whisper-cli.exe`; keep the whole `Release` folder together.
 
-Then update your config.json to point to the new GPU-enabled executable.
+**Slow transcription:** use a GPU build (CUDA on Windows, Metal on macOS). On an RTX 3080, a 23-minute recording takes about 35 seconds with large-v3-turbo.
 
-### Multiple Models
+**Words missing around pauses:** if loop repair is off, voice activity detection runs on every pass and can skip quiet speech. Turn repair on (VAD is then only used for audio that loops), or speak closer to the mic.
 
-You can switch between models by just changing the `modelPath` in your config.json. No need to restart ThoughtCast - just record a new session and it will use the new model.
-
-## Verification Checklist
-
-- [ ] Whisper.cpp compiled successfully
-- [ ] Model file downloaded (at least `base` or `large-v3-turbo`)
-- [ ] config.json created in Documents/ThoughtCast/
-- [ ] Paths in config.json are absolute and correct
-- [ ] Windows paths use double backslashes `\\`
-- [ ] Test recording produces a transcript
-- [ ] Transcript appears in the UI
-- [ ] Transcript text matches what you said
-
-## Next Steps
-
-Once transcription is working:
-1. Try different models to find the best speed/accuracy for your needs
-2. Record longer sessions to test with real use cases
-3. Check the [WHISPER_IMPLEMENTATION.md](WHISPER_IMPLEMENTATION.md) for technical details
-4. Enable GPU acceleration for faster transcription
-5. Consider setting up automatic clipboard copy (coming soon!)
-
-## Getting Help
-
-If you're still having issues:
-1. Check the [Whisper.cpp documentation](https://github.com/ggerganov/whisper.cpp)
-2. Verify Whisper works standalone before debugging ThoughtCast
-3. Look at the logs in ThoughtCast console (if running in dev mode)
-4. Open an issue on the ThoughtCast GitHub repository
-
-## Quick Reference
-
-**Config file location:**
-- Windows: `C:\Users\YourName\Documents\ThoughtCast\config.json`
-- macOS: `~/Documents/ThoughtCast/config.json`
-
-**Example config.json:**
-```json
-{
-  "whisperPath": "C:\\Source\\whisper.cpp\\build\\bin\\Release\\whisper-cli.exe",
-  "modelPath": "C:\\Source\\whisper.cpp\\models\\ggml-large-v3-turbo.bin"
-}
-```
-
-**Recommended model:** `large-v3-turbo` (best balance of speed and accuracy)
-
-**Download command:**
-```bash
-bash ./models/download-ggml-model.sh large-v3-turbo
-```
-
-Happy transcribing! 🎙️→📝
+**Repeated lines in a transcript:** turn on Repair repetition loops and set a VAD model, then Re-transcribe the session.

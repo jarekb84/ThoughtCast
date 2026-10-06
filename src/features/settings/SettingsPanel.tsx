@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../../shared/components";
 import { useSettingsForm } from "./useSettingsForm";
-import TranscriptionSettingsSection from "./sections/TranscriptionSettingsSection";
+import TranscriptionSettingsSection from "./sections/transcription/TranscriptionSettingsSection";
 import AudioChunkingSection from "./sections/audio-chunking/AudioChunkingSection";
 import CompressionSettingsSection from "./sections/CompressionSettingsSection";
 import KeyboardShortcutsSection from "./sections/KeyboardShortcutsSection";

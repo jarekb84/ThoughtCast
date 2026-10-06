@@ -5,6 +5,7 @@ import { formatFilePath } from '../../shared/formatters/file-path';
 import RecordingControls from '../recording/RecordingControls';
 import { Button, Card, InfoRow } from '../../shared/components';
 import { useTranscriptViewer } from './useTranscriptViewer';
+import RecordingQualityRow from './recording-quality/RecordingQualityRow';
 import './SessionViewer.css';
 
 /**
@@ -143,6 +144,9 @@ export default function SessionViewer({
                   label="Transcript"
                   value={formatFilePath(selectedSession.transcript_path)}
                 />
+              )}
+              {selectedSession.recording_quality && (
+                <RecordingQualityRow quality={selectedSession.recording_quality} />
               )}
             </Card>
 

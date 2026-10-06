@@ -1,5 +1,11 @@
 // Types
-export type { Session, SessionIndex } from './Session';
+export type {
+  Session,
+  SessionIndex,
+  RecordingQuality,
+  QualityRating,
+  QualityIssue,
+} from './Session';
 export type { RecordingStatus } from './RecordingStatus';
 export type {
   TranscriptionCompleteEvent,

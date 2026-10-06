@@ -37,6 +37,26 @@ describe("mergeConfigDefaults", () => {
     expect(merged.audioCompression.compressOldRecordingsOlderThanDays).toBe(7);
   });
 
+  it("fills transcription defaults for configs written before the section existed", () => {
+    const merged = mergeConfigDefaults({ whisperPath: "/bin/whisper" });
+    expect(merged.transcription).toEqual(DEFAULT_APP_CONFIG.transcription);
+  });
+
+  it("keeps provided transcription fields and fills the rest", () => {
+    const merged = mergeConfigDefaults({
+      transcription: {
+        engine: "parakeet",
+        vocabulary: "ThoughtCast",
+        vadModelPath: undefined,
+      } as never,
+    });
+
+    expect(merged.transcription.engine).toBe("parakeet");
+    expect(merged.transcription.vocabulary).toBe("ThoughtCast");
+    expect(merged.transcription.vadModelPath).toBe("");
+    expect(merged.transcription.repairRepetitions).toBe(true);
+  });
+
   it("does not mutate the input", () => {
     const input = { whisperPath: "/x" };
     const before = JSON.stringify(input);

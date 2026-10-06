@@ -219,7 +219,14 @@ fn quarantine_cancelled_recording(
 /// `transcription_orchestration::orchestrate_async_transcription`.
 ///
 /// Can be called from Recording or Paused state.
-pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
+///
+/// `on_capture_stopped` runs as soon as the capture callback has stopped
+/// collecting samples, before the WAV is finalized. It's where the stop cue
+/// plays: anything audible from that point on stays out of the recording.
+pub fn stop_recording(
+    state: SharedRecordingState,
+    on_capture_stopped: impl FnOnce(),
+) -> Result<Session, String> {
     let id: String;
     let timestamp = Utc::now();
     let duration: f64;
@@ -258,6 +265,10 @@ pub fn stop_recording(state: SharedRecordingState) -> Result<Session, String> {
         state_guard.status = RecordingStatus::Processing;
         in_flight_path = state_guard.capture.in_flight_audio_path.clone();
     }
+
+    // The capture callback only stores samples while the status is
+    // Recording, so from here on nothing new reaches the recording.
+    on_capture_stopped();
 
     // Wait a bit for the recording thread to finish writing + finalize the
     // streaming WAV so the rename below sees a settled file with the OS

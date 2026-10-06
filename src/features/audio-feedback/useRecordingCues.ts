@@ -4,7 +4,9 @@ import { logger } from "../../shared/utils/logger";
 import type { CueType } from "../settings/appConfig";
 
 /**
- * Dispatchers for the three recording-state audio cues.
+ * Dispatchers for the frontend-driven recording cues (start and ready). The
+ * stop cue is played by the backend's `stop_recording` command, right after
+ * capture stops, so it can't race the microphone and end up in the recording.
  *
  * ## Why a dedicated hook
  *
@@ -19,17 +21,14 @@ import type { CueType } from "../settings/appConfig";
  * - **Start cue is blocking** (PRD edge case 5): the cue plays out fully
  *   before microphone capture begins so it never bleeds onto the waveform.
  *   Callers `await` it.
- * - **Stop and Ready cues are fire-and-forget**: capture is already finished
- *   by then (or never started), so there's no waveform-pollution risk and we
- *   don't want to block the UI on speaker output.
+ * - **Ready cue is fire-and-forget**: capture is long finished by then, and
+ *   we don't want to block the UI on speaker output.
  *
- * All three are non-fatal — playback errors log a warning and resolve.
+ * Both are non-fatal — playback errors log a warning and resolve.
  */
 export interface RecordingCueDispatchers {
   /** Awaitable; must complete before microphone capture begins. */
   playStart: () => Promise<void>;
-  /** Fire-and-forget; safe to call after capture has stopped. */
-  playStop: () => void;
   /** Fire-and-forget; advises the user transcription finished. */
   playReady: () => void;
 }
@@ -45,15 +44,11 @@ export function useRecordingCues(): RecordingCueDispatchers {
     }
   }, [audioCueService]);
 
-  const playStop = useCallback(() => {
-    void runFireAndForget(audioCueService.playCue("stop"), "stop");
-  }, [audioCueService]);
-
   const playReady = useCallback(() => {
     void runFireAndForget(audioCueService.playCue("ready"), "ready");
   }, [audioCueService]);
 
-  return { playStart, playStop, playReady };
+  return { playStart, playReady };
 }
 
 function runFireAndForget(promise: Promise<void>, cue: CueType): Promise<void> {
